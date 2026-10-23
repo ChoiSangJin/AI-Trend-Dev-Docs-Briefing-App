@@ -342,7 +342,7 @@ class SettingsScreen extends ConsumerWidget {
         ),
         const Center(
           child: Text(
-            'AI 모닝 브리핑 · 1.0.1',
+            'AI 모닝 브리핑 · 1.0.2',
             style: TextStyle(fontSize: 11, color: Color(0xFF60716D)),
           ),
         ),
