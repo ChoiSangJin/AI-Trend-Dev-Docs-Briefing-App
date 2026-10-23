@@ -32,11 +32,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       final data = await Clipboard.getData(Clipboard.kTextPlain);
       if (!mounted) return;
       keyInput.text = data?.text?.trim() ?? '';
-      if (!keyInput.text.startsWith('AIza')) {
-        setState(() => error = 'AIza로 시작하는 열쇠를 복사해 주세요.');
-      }
+      setState(
+        () => error = keyInput.text.isEmpty ? 'API 키를 복사해서 가져오세요.' : null,
+      );
     } catch (_) {
-      if (mounted) setState(() => error = '붙여넣기가 어려우면 열쇠를 직접 입력해 주세요.');
+      if (mounted) setState(() => error = '붙여넣기가 어려우면 API 키를 직접 입력해 주세요.');
     }
   }
 
@@ -51,7 +51,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     } on BriefingException catch (e) {
       if (mounted) setState(() => error = e.message);
     } catch (_) {
-      if (mounted) setState(() => error = '열쇠를 안전하게 저장하지 못했어요. 다시 시도해 주세요.');
+      if (mounted) setState(() => error = 'API 키를 안전하게 저장하지 못했어요. 다시 시도해 주세요.');
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -144,7 +144,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       icon: Icons.wb_sunny_outlined,
                       eyebrow: '하루 3분, 새로운 시야',
                       title: 'AI의 오늘을,\n내 언어로 읽어요.',
-                      body: '복잡한 해외 소식도 한국어 세 줄로. 서버나 광고 없이, 구글에서 받은 개인용 AI 번역 열쇠를 기기에 안전하게 보관해요.',
+                      body: '복잡한 해외 소식도 한국어 세 줄로. 서버나 광고 없이, 구글에서 받은 개인 Gemini API 키를 기기에 안전하게 보관해요.',
                       children: [
                         const SoftPanel(
                           child: Column(
@@ -174,9 +174,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     ),
                     card(
                       icon: Icons.vpn_key_outlined,
-                      eyebrow: '열쇠 준비하기',
-                      title: '한 번만 준비하면\n매일이 간편해요.',
-                      body: '구글 페이지에서 무료 AI 번역 열쇠를 만들어 주세요. 돌아오면 바로 이어서 시작할 수 있어요.',
+                      eyebrow: 'API 키 준비하기',
+                      title: 'API 키를 복사해서\n가져오세요.',
+                      body: 'Google AI Studio에서 API 키를 복사해서 가져오세요. 돌아오면 바로 이어서 등록할 수 있어요.',
                       children: [
                         SizedBox(
                           width: double.infinity,
@@ -186,13 +186,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                               'https://aistudio.google.com/app/apikey',
                             ),
                             icon: const Icon(Icons.open_in_new),
-                            label: const Text('구글 무료 AI 열쇠 받으러 가기'),
+                            label: const Text('Google AI Studio 열기'),
                           ),
                         ),
                         const SizedBox(height: 20),
                         const SoftPanel(
                           child: Text(
-                            '1. 구글 계정으로 로그인하세요.\n\n2. “Create API key” 버튼을 누르세요.\n\n3. AIza로 시작하는 열쇠 옆 복사 아이콘을 누르고, 닫기(X) 또는 뒤로가기로 돌아오세요.',
+                            '1. 구글 계정으로 로그인하세요.\n\n2. “Create API key” 버튼을 누르세요.\n\n3. 생성된 API 키 옆 복사 아이콘을 누르고, 닫기(X) 또는 뒤로가기로 돌아오세요.',
                             style: TextStyle(height: 1.6),
                           ),
                         ),
@@ -206,13 +206,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     card(
                       icon: Icons.lock_outline,
                       eyebrow: '안전하게 연결하기',
-                      title: '열쇠를 붙여넣고,\n브리핑을 열어보세요.',
-                      body: '열쇠가 잘 작동하는지 확인한 뒤, 이 기기의 보안 저장소에만 보관해요.',
+                      title: 'API 키를 붙여넣고,\n브리핑을 열어보세요.',
+                      body: 'API 키가 잘 작동하는지 확인한 뒤, 이 기기의 보안 저장소에만 보관해요.',
                       children: [
                         OutlinedButton.icon(
                           onPressed: busy ? null : paste,
                           icon: const Icon(Icons.content_paste),
-                          label: const Text('클립보드에서 열쇠 붙여넣기'),
+                          label: const Text('클립보드에서 API 키 붙여넣기'),
                         ),
                         const SizedBox(height: 16),
                         TextField(
@@ -225,10 +225,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                             if (error != null) setState(() => error = null);
                           },
                           decoration: InputDecoration(
-                            labelText: '무료 AI 번역 열쇠',
-                            hintText: 'AIza…',
+                            labelText: 'Gemini API 키',
+                            hintText: '복사한 API 키를 붙여넣으세요',
                             suffixIcon: IconButton(
-                              tooltip: reveal ? '열쇠 가리기' : '열쇠 보기',
+                              tooltip: reveal ? 'API 키 가리기' : 'API 키 보기',
                               onPressed: () => setState(() => reveal = !reveal),
                               icon: Icon(
                                 reveal
@@ -261,12 +261,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : const Text('열쇠 확인하고 시작하기'),
+                                : const Text('API 키 확인하고 시작하기'),
                           ),
                         ),
                         const SizedBox(height: 18),
                         const Text(
-                          '요약을 요청하면 선택된 소식의 제목·발췌문과 열쇠가 구글로 전송돼요. Google AI Studio 무료 제공 서비스의 데이터 이용 정책을 확인해 주세요. 이 앱의 별도 서버로는 전송하지 않아요.',
+                          '요약을 요청하면 선택된 소식의 제목·발췌문과 API 키가 구글로 전송돼요. Google AI Studio 무료 제공 서비스의 데이터 이용 정책을 확인해 주세요. 이 앱의 별도 서버로는 전송하지 않아요.',
                           style: TextStyle(fontSize: 12, height: 1.6),
                         ),
                         TextButton(

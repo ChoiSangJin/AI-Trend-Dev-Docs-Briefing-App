@@ -1,12 +1,13 @@
 # AI 모닝 브리핑
 
-해외 AI 소식과 개발 문서를 한국어 세 줄로 읽는 Android 앱입니다. 별도 백엔드, 외부 DB, 로그인, 광고가 없습니다. 사용자가 자신의 Google Gemini 열쇠를 등록하며, 모든 설정·학습 기록·요약 캐시는 기기에 저장합니다.
+해외 AI 소식과 개발 문서를 한국어 세 줄로 읽는 Android 앱입니다. 별도 백엔드, 외부 DB, 로그인, 광고가 없습니다. 사용자가 자신의 Google Gemini API 키를 등록하며, 모든 설정·학습 기록·요약 캐시는 기기에 저장합니다.
 
 ## 사용하기
 
-GitHub Releases에서 **arm64 APK**를 내려받아 Android 7.0(API 24) 이상 arm64 기기에 설치하세요. 최초 실행 시 3단계 안내에 따라 Google AI Studio에서 발급한 열쇠를 등록합니다. 지역·계정별 사용 가능 여부와 무료 제공량은 Google 정책에 따라 달라지며, 영구 무료를 보장하지 않습니다.
+GitHub Releases에서 **arm64 APK**를 내려받아 Android 7.0(API 24) 이상 arm64 기기에 설치하세요. 최초 실행 시 3단계 안내에 따라 Google AI Studio에서 발급한 API 키를 등록합니다. 지역·계정별 사용 가능 여부와 무료 제공량은 Google 정책에 따라 달라지며, 영구 무료를 보장하지 않습니다.
 
 - 오늘의 최신 소식 10개를 모아, 저장된 요약을 먼저 보여줍니다.
+- API 키의 접두사나 길이는 제한하지 않습니다. 앞뒤 공백을 제거하고 빈 입력만 안내하며, 실제 Google 요청의 성공 여부로 확인한 후 저장합니다.
 - 새로운 소식은 `gemini-2.5-flash`에 한 번으로 묶어 요청합니다. 제목, 발췌문, 출처, 기사 식별자가 Google로 전송됩니다. 전문을 수집하거나 추측하지 않습니다.
 - 키 확인과 요약은 공통 65초 간격 제한을 사용합니다. 키 확인 직후 첫 요약도 이 제한을 따르므로, 잠시 후 **요약 다시 시도**를 눌러 주세요. 계정별 무료 한도는 더 낮을 수 있으며 429 응답을 받으면 추가 대기합니다.
 - 요약이 없거나 실패하면 원문 제목·발췌문을 보여줍니다. 피드에 없는 정보를 완전한 기사 요약으로 표시하지 않습니다.
@@ -38,7 +39,7 @@ flutter build apk --debug --target-platform android-arm64
 python3 tool/verify_apk.py build/app/outputs/flutter-apk/app-debug.apk
 ```
 
-`tool/feed_smoke.dart`는 실제 GitHub SDK Atom 피드를 읽는 네트워크 확인용입니다. 단위·위젯 테스트는 실제 Gemini 열쇠 없이 실행됩니다. 실제 Gemini 응답, Keystore, 클립보드, 브라우저 복귀, 권한 거절·허용, 재부팅 후 알림은 Android 기기에서 별도 확인해야 합니다.
+`tool/feed_smoke.dart`는 실제 GitHub SDK Atom 피드를 읽는 네트워크 확인용입니다. 단위·위젯 테스트는 실제 Gemini API 키 없이 실행됩니다. 실제 Gemini 응답, Keystore, 클립보드, 브라우저 복귀, 권한 거절·허용, 재부팅 후 알림은 Android 기기에서 별도 확인해야 합니다.
 
 ## 릴리스 서명 및 배포
 
@@ -62,7 +63,7 @@ bash tool/build_release.sh
 
 ## 데이터와 보안
 
-열쇠는 Android Keystore 기반 `flutter_secure_storage`에 암호화 저장하고 요청 헤더로 Google에 전송합니다. 로그·코드·URL 쿼리에 열쇠를 넣지 않습니다. Android 백업을 비활성화해 키와 기기 암호화 자료의 잘못된 복원을 방지합니다. 요약 캐시는 최대 500개, 읽은 기사 식별자는 최대 2,000개입니다. 앱 삭제 시 기기의 저장 데이터도 삭제됩니다. 열쇠를 폐기하려면 Google AI Studio에서도 삭제하세요.
+API 키는 Android Keystore 기반 `flutter_secure_storage`에 암호화 저장하고 요청 헤더로 Google에 전송합니다. 로그·코드·URL 쿼리에 API 키를 넣지 않습니다. Android 백업을 비활성화해 키와 기기 암호화 자료의 잘못된 복원을 방지합니다. 요약 캐시는 최대 500개, 읽은 기사 식별자는 최대 2,000개입니다. 앱 삭제 시 기기의 저장 데이터도 삭제됩니다. API 키를 폐기하려면 Google AI Studio에서도 삭제하세요.
 
 AI 요약은 부정확할 수 있습니다. Google 무료 서비스의 입력 데이터 이용 조건은 [Gemini 이용약관](https://ai.google.dev/gemini-api/terms)을 확인하세요. 민감한 개인 정보를 포함하는 피드는 등록하지 마세요. 알림 문구는 예약 시 무작위로 선택되며 반복 알림에 사용됩니다. 시간대 변경 후에는 앱을 다시 열어 알림을 재예약하세요.
 

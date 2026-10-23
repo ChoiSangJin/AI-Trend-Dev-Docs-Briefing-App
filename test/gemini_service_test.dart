@@ -53,6 +53,55 @@ void main() {
     prefs = await SharedPreferences.getInstance();
     now = DateTime.utc(2026, 10, 23);
   });
+  test('Validation accepts any nonempty prefix, trims whitespace and checks with Google', () async {
+    var calls = 0;
+    String? submittedKey;
+    final client = MockClient((request) async {
+      calls++;
+      submittedKey = request.headers['x-goog-api-key'];
+      return response('OK');
+    });
+    await GeminiService(
+      client,
+      prefs,
+    ).validateKey('  different-prefix-test-key  ');
+    expect(calls, 1);
+    expect(submittedKey, 'different-prefix-test-key');
+    client.close();
+  });
+  test(
+    'An empty key is rejected without calling Google or consuming quota',
+    () async {
+      var calls = 0;
+      final client = MockClient((_) async {
+        calls++;
+        return response('OK');
+      });
+      await expectLater(
+        GeminiService(client, prefs).validateKey('  \n  '),
+        throwsA(isA<BriefingException>()),
+      );
+      expect(calls, 0);
+      expect(prefs.containsKey('gemini_next_request'), isFalse);
+      client.close();
+    },
+  );
+  test(
+    'A nonstandard key rejected by Google is not accepted locally',
+    () async {
+      var calls = 0;
+      final client = MockClient((_) async {
+        calls++;
+        return http.Response('{}', 403);
+      });
+      await expectLater(
+        GeminiService(client, prefs).validateKey('different-prefix-test-key'),
+        throwsA(isA<BriefingException>()),
+      );
+      expect(calls, 1);
+      client.close();
+    },
+  );
   test('Ten uncached articles use exactly one structured request with a header key', () async {
     var count = 0;
     final client = MockClient((r) async {

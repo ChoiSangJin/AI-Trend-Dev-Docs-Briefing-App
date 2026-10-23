@@ -239,7 +239,7 @@ class SettingsScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 28),
         const Text(
-          '열쇠와 데이터',
+          'API 키와 데이터',
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
         ),
         const SizedBox(height: 12),
@@ -249,7 +249,7 @@ class SettingsScreen extends ConsumerWidget {
               const ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.lock_outline, color: accent),
-                title: Text('AI 번역 열쇠 연결됨'),
+                title: Text('Gemini API 키 연결됨'),
                 subtitle: Text(
                   '이 기기의 보안 저장소에 암호화 보관',
                   style: TextStyle(fontSize: 12),
@@ -257,15 +257,15 @@ class SettingsScreen extends ConsumerWidget {
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('열쇠 삭제하고 다시 연결'),
+                title: const Text('API 키 삭제하고 다시 연결'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () async {
                   final confirm = await showDialog<bool>(
                     context: context,
                     builder: (context) => AlertDialog(
-                      title: const Text('열쇠를 삭제할까요?'),
+                      title: const Text('API 키를 삭제할까요?'),
                       content: const Text(
-                        '기기에 저장한 열쇠를 지우고 시작 안내로 돌아가요. 요약과 학습 기록은 유지돼요.',
+                        '기기에 저장한 API 키를 지우고 시작 안내로 돌아가요. 요약과 학습 기록은 유지돼요.',
                       ),
                       actions: [
                         TextButton(
@@ -300,7 +300,7 @@ class SettingsScreen extends ConsumerWidget {
                           builder: (context) => AlertDialog(
                             title: const Text('저장된 요약을 비울까요?'),
                             content: const Text(
-                              '삭제한 요약은 복구할 수 없어요. 연속 기록과 열쇠는 유지돼요.',
+                              '삭제한 요약은 복구할 수 없어요. 연속 기록과 API 키는 유지돼요.',
                             ),
                             actions: [
                               TextButton(
@@ -342,7 +342,7 @@ class SettingsScreen extends ConsumerWidget {
         ),
         const Center(
           child: Text(
-            'AI 모닝 브리핑 · 1.0.0',
+            'AI 모닝 브리핑 · 1.0.1',
             style: TextStyle(fontSize: 11, color: Color(0xFF60716D)),
           ),
         ),
