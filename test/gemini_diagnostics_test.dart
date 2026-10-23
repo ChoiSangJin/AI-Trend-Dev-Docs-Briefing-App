@@ -56,7 +56,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late SharedPreferences prefs;
   setUp(() async {
-    SharedPreferences.setMockInitialValues({'gemini_summary_model_policy': 1});
+    SharedPreferences.setMockInitialValues({'gemini_summary_model_policy': 2});
     prefs = await SharedPreferences.getInstance();
   });
   test('A key works without the retired fixed model, and first summary can run immediately', () async {
@@ -120,7 +120,7 @@ void main() {
       }),
     );
     await GeminiService(client, prefs).validateKey(testKey);
-    expect(prefs.getString('gemini_model'), 'gemini-4.0-flash');
+    expect(prefs.getString('gemini_model'), 'gemini-4.0-flash-lite');
     client.close();
   });
   test(

@@ -26,19 +26,43 @@ class GeminiService {
   final Duration requestTimeout;
   bool _busy = false;
   static const host = 'generativelanguage.googleapis.com';
+  static const modelPolicyVersion = 2;
   static const preferredModels = [
-    'gemini-2.5-flash-lite',
     'gemini-flash-lite-latest',
-    'gemini-2.5-flash',
     'gemini-flash-latest',
   ];
   static final stableFlash = RegExp(
     r'^gemini-(\d+)(?:\.(\d+))?-flash(?:-lite)?$',
   );
+  static bool _isCurrentTextModel(String name) {
+    if (preferredModels.contains(name)) return true;
+    final match = stableFlash.firstMatch(name);
+    // Google restricts 2.5 access for new projects. Do not rediscover it as a
+    // default even if it still appears in the general model catalog.
+    return match != null && int.parse(match.group(1)!) >= 3;
+  }
+
+  static int _compareModels(String a, String b) {
+    final ma = stableFlash.firstMatch(a), mb = stableFlash.firstMatch(b);
+    int rank(String name, RegExpMatch? match) => match != null
+        ? (name.endsWith('-lite') ? 0 : 1)
+        : (name == preferredModels.first ? 2 : 3);
+    final priority = rank(a, ma).compareTo(rank(b, mb));
+    if (priority != 0) return priority;
+    if (ma != null && mb != null) {
+      final major = int.parse(mb.group(1)!).compareTo(int.parse(ma.group(1)!));
+      if (major != 0) return major;
+      return int.parse(mb.group(2) ?? '0')
+          .compareTo(int.parse(ma.group(2) ?? '0'));
+    }
+    return a.compareTo(b);
+  }
+
+  Set<String> get _rejectedModels =>
+      (prefs.getStringList('gemini_rejected_models') ?? []).toSet();
   String get model {
     final saved = prefs.getString('gemini_model');
-    return saved != null &&
-            (preferredModels.contains(saved) || stableFlash.hasMatch(saved))
+    return saved != null && _isCurrentTextModel(saved)
         ? saved
         : preferredModels.first;
   }
@@ -46,6 +70,8 @@ class GeminiService {
   Future<void> _requireSuccess(
     http.Response response, {
     bool generation = false,
+    String? requestedModel,
+    String? recoveryDetail,
   }) async {
     if (response.statusCode == 200) return;
     // Never display raw response messages: providers may echo credential data.
@@ -114,7 +140,7 @@ class GeminiService {
       message = 'Gemini API 접근 권한이 거절됐어요. 키의 앱·주소·서비스 제한과 프로젝트 권한을 확인해 주세요.';
     } else if (response.statusCode == 404) {
       message = generation
-          ? '선택한 AI 모델($model)을 찾을 수 없어요. 설정에서 API 키를 다시 연결해 사용 가능한 모델을 갱신해 주세요.'
+          ? 'Google에서 AI 모델(${requestedModel ?? model})의 생성 요청을 처리하지 못했어요. 키를 다시 발급하기 전에 Google AI Studio 프로젝트의 모델 제공 여부를 확인해 주세요.'
           : 'Google 모델 목록 조회 주소를 찾지 못했어요. 앱 업데이트를 확인해 주세요.';
     } else if (response.statusCode >= 500) {
       message = 'Google AI 서버에서 오류가 발생했어요. 잠시 후 다시 시도해 주세요.';
@@ -123,7 +149,42 @@ class GeminiService {
     } else {
       message = 'Google 요청이 실패했어요. 아래 오류 코드를 확인해 주세요.';
     }
-    throw BriefingException('$message$suffix');
+    throw BriefingException(
+      '$message$suffix${recoveryDetail == null ? '' : '\n모델 갱신: $recoveryDetail'}',
+    );
+  }
+
+  Future<http.Response> _sendGeneration(
+    String key,
+    String selectedModel,
+    Map<String, dynamic> body,
+  ) async {
+    final abort = Completer<void>();
+    try {
+      final request =
+          http.AbortableRequest(
+              'POST',
+              Uri.https(host, '/v1beta/models/$selectedModel:generateContent'),
+              abortTrigger: abort.future,
+            )
+            ..headers.addAll({
+              'Content-Type': 'application/json',
+              'x-goog-api-key': key,
+            })
+            ..body = jsonEncode(body);
+      return await client
+          .send(request)
+          .then(http.Response.fromStream)
+          .timeout(
+            requestTimeout,
+            onTimeout: () {
+              abort.complete();
+              throw TimeoutException('Generation deadline');
+            },
+          );
+    } finally {
+      if (!abort.isCompleted) abort.complete();
+    }
   }
 
   Future<dynamic> _generate(String key, Map<String, dynamic> body) async {
@@ -134,51 +195,66 @@ class GeminiService {
       throw BriefingException('$seconds초 후 다시 시도해 주세요. 무료 사용량을 보호하고 있어요.');
     }
     _busy = true;
-    final abort = Completer<void>();
-    var receivedResponse = false;
+    int? receivedStatus;
     try {
-      // Generation requests share a persistent gate. Key checks do not generate content.
-      await prefs.setInt('gemini_next_request', now + 65000);
-      final request =
-          http.AbortableRequest(
-              'POST',
-              Uri.https(host, '/v1beta/models/$model:generateContent'),
-              abortTrigger: abort.future,
-            )
-            ..headers.addAll({
-              'Content-Type': 'application/json',
-              'x-goog-api-key': key,
-            })
-            ..body = jsonEncode(body);
-      // Bound the entire response, including its body, and cancel the actual
-      // transport on timeout so a retry cannot overlap an abandoned request.
-      final response = await client
-          .send(request)
-          .then(http.Response.fromStream)
-          .timeout(
-            requestTimeout,
-            onTimeout: () {
-              abort.complete();
-              throw TimeoutException('Generation deadline');
-            },
+      final savedModel = prefs.getString('gemini_model');
+      if (prefs.getInt('gemini_summary_model_policy') != modelPolicyVersion ||
+          (savedModel != null && !_isCurrentTextModel(savedModel)) ||
+          _rejectedModels.contains(model)) {
+        await _discoverModel(key, excludedModels: _rejectedModels);
+      }
+      // A 404 did not generate a summary. Permit only one replacement attempt
+      // within this guarded operation; all other failures stop immediately.
+      for (var attempt = 0; attempt < 2; attempt++) {
+        final selectedModel = model;
+        await prefs.setInt(
+          'gemini_next_request',
+          clock().millisecondsSinceEpoch + 65000,
+        );
+        final response = await _sendGeneration(key, selectedModel, body);
+        receivedStatus = response.statusCode;
+        if (response.statusCode == 404) {
+          final rejected = _rejectedModels..add(selectedModel);
+          await prefs.setStringList(
+            'gemini_rejected_models',
+            rejected.toList(),
           );
-      receivedResponse = true;
-      await _requireSuccess(response, generation: true);
-      final json =
-          jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
-      final candidates = json['candidates'] as List?;
-      if (candidates == null || candidates.isEmpty) {
-        throw const FormatException('No candidates');
+          if (attempt == 0) {
+            try {
+              await _discoverModel(key, excludedModels: rejected);
+            } on BriefingException catch (error) {
+              await _requireSuccess(
+                response,
+                generation: true,
+                requestedModel: selectedModel,
+                recoveryDetail: error.message,
+              );
+            }
+            continue;
+          }
+        }
+        await _requireSuccess(
+          response,
+          generation: true,
+          requestedModel: selectedModel,
+        );
+        final json =
+            jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        final candidates = json['candidates'] as List?;
+        if (candidates == null || candidates.isEmpty) {
+          throw const FormatException('No candidates');
+        }
+        final candidate = candidates.first as Map<String, dynamic>;
+        if (candidate['finishReason'] != 'STOP') {
+          throw const FormatException('Incomplete AI response');
+        }
+        final parts = candidate['content']['parts'] as List;
+        return parts
+            .where((p) => p['thought'] != true)
+            .map((p) => p['text'] as String? ?? '')
+            .join();
       }
-      final candidate = candidates.first as Map<String, dynamic>;
-      if (candidate['finishReason'] != 'STOP') {
-        throw const FormatException('Incomplete AI response');
-      }
-      final parts = candidate['content']['parts'] as List;
-      return parts
-          .where((p) => p['thought'] != true)
-          .map((p) => p['text'] as String? ?? '')
-          .join();
+      throw const FormatException('No usable model');
     } on BriefingException {
       rethrow;
     } on TimeoutException {
@@ -191,17 +267,23 @@ class GeminiService {
       );
     } catch (_) {
       throw BriefingException(
-        receivedResponse
-            ? 'Google AI 응답이 완전하지 않거나 형식이 달라 처리하지 못했어요. 다시 시도해 주세요. (HTTP 200)'
+        receivedStatus != null
+            ? 'Google AI 응답이 완전하지 않거나 형식이 달라 처리하지 못했어요. 다시 시도해 주세요. (HTTP $receivedStatus)'
             : 'Google 요청을 보내지 못했어요. 복사한 API 키와 기기 연결을 확인해 주세요. (응답 코드 없음)',
       );
     } finally {
-      if (!abort.isCompleted) abort.complete();
       _busy = false;
     }
   }
 
-  Future<void> validateKey(String key) async {
+  Future<void> validateKey(String key) =>
+      _discoverModel(key, resetRejections: true);
+
+  Future<void> _discoverModel(
+    String key, {
+    Set<String> excludedModels = const {},
+    bool resetRejections = false,
+  }) async {
     final trimmedKey = key.trim();
     if (trimmedKey.isEmpty) {
       throw const BriefingException('API 키를 복사해서 가져오세요.');
@@ -236,7 +318,7 @@ class GeminiService {
             RegExp(r'^models/'),
             '',
           );
-          if (preferredModels.contains(name) || stableFlash.hasMatch(name)) {
+          if (_isCurrentTextModel(name) && !excludedModels.contains(name)) {
             available.add(name);
           }
         }
@@ -244,38 +326,16 @@ class GeminiService {
         if (pageToken == null || pageToken.isEmpty) break;
         if (page == 4) throw const FormatException('Incomplete model listing');
       }
-      String? selected;
-      for (final preferred in preferredModels) {
-        if (available.contains(preferred)) {
-          selected = preferred;
-          break;
-        }
-      }
-      if (selected == null && available.isNotEmpty) {
-        final stable = available.toList()
-          ..sort((a, b) {
-            final ma = stableFlash.firstMatch(a)!,
-                mb = stableFlash.firstMatch(b)!;
-            final major = int.parse(mb.group(1)!)
-                .compareTo(int.parse(ma.group(1)!));
-            if (major != 0) return major;
-            final minor = int.parse(mb.group(2) ?? '0')
-                .compareTo(int.parse(ma.group(2) ?? '0'));
-            return minor != 0
-                ? minor
-                : (a.endsWith('-lite') ? 1 : 0).compareTo(
-                    b.endsWith('-lite') ? 1 : 0,
-                  );
-          });
-        selected = stable.first;
-      }
-      if (selected == null) {
+      final candidates = available.toList()..sort(_compareModels);
+      if (candidates.isEmpty) {
         throw const BriefingException(
-          'Google에서 키는 확인했지만 사용할 수 있는 텍스트 Flash 모델을 찾지 못했어요. Google AI Studio 프로젝트의 모델 제공 여부를 확인해 주세요.',
+          'Google에서 키는 확인했지만 생성 가능한 최신 텍스트 Flash 모델을 찾지 못했어요. Google AI Studio 프로젝트의 모델 제공 여부를 확인해 주세요. 실패한 모델은 다시 선택하지 않았어요.',
         );
       }
+      final selected = candidates.first;
       await prefs.setString('gemini_model', selected);
-      await prefs.setInt('gemini_summary_model_policy', 1);
+      await prefs.setInt('gemini_summary_model_policy', modelPolicyVersion);
+      if (resetRejections) await prefs.remove('gemini_rejected_models');
     } on BriefingException {
       rethrow;
     } on TimeoutException {
@@ -299,11 +359,6 @@ class GeminiService {
     if (articles.isEmpty) return [];
     if (articles.length > 10) {
       throw ArgumentError('A batch may contain at most 10 articles');
-    }
-    // Upgrade existing installations that selected a heavier Flash alias before
-    // the short-summary model policy existed. Only use a model Google lists.
-    if (prefs.getInt('gemini_summary_model_policy') != 1) {
-      await validateKey(key);
     }
     String compact(String value, int limit) =>
         String.fromCharCodes(value.runes.take(limit));
@@ -341,8 +396,6 @@ class GeminiService {
       'generationConfig': {
         'temperature': 0.2,
         'maxOutputTokens': 6144,
-        if (model.startsWith('gemini-2.5-'))
-          'thinkingConfig': {'thinkingBudget': 0},
         'responseMimeType': 'application/json',
         'responseSchema': {
           'type': 'ARRAY',
