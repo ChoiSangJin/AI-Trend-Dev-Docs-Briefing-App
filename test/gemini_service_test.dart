@@ -43,6 +43,19 @@ http.Response response(dynamic value) => http.Response(
   200,
   headers: {'content-type': 'application/json; charset=utf-8'},
 );
+http.Response modelResponse(List<String> names) => http.Response(
+  jsonEncode({
+    'models': [
+      for (final name in names)
+        {
+          'name': 'models/$name',
+          'supportedGenerationMethods': ['generateContent'],
+        },
+    ],
+  }),
+  200,
+  headers: {'content-type': 'application/json; charset=utf-8'},
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -59,7 +72,9 @@ void main() {
     final client = MockClient((request) async {
       calls++;
       submittedKey = request.headers['x-goog-api-key'];
-      return response('OK');
+      expect(request.method, 'GET');
+      expect(request.url.path, '/v1beta/models');
+      return modelResponse(['gemini-flash-latest']);
     });
     await GeminiService(
       client,
@@ -67,6 +82,8 @@ void main() {
     ).validateKey('  different-prefix-test-key  ');
     expect(calls, 1);
     expect(submittedKey, 'different-prefix-test-key');
+    expect(prefs.getString('gemini_model'), 'gemini-flash-latest');
+    expect(prefs.containsKey('gemini_next_request'), isFalse);
     client.close();
   });
   test(
@@ -129,27 +146,32 @@ void main() {
     expect(await GeminiService(client, prefs).summarize(key, []), isEmpty);
     client.close();
   });
-  test(
-    'Persistent quota gate covers validation and subsequent service instances',
-    () async {
-      var count = 0;
-      final client = MockClient((_) async {
-        count++;
-        return response([summary('a')]);
-      });
-      await GeminiService(client, prefs, clock: () => now).validateKey(key);
-      final restarted = GeminiService(client, prefs, clock: () => now);
-      await expectLater(
-        restarted.summarize(key, [article('a')]),
-        throwsA(isA<BriefingException>()),
-      );
-      expect(count, 1);
-      now = now.add(const Duration(seconds: 66));
-      await restarted.summarize(key, [article('a')]);
-      expect(count, 2);
-      client.close();
-    },
-  );
+  test('Key checks do not consume generation quota and generation limits survive restart', () async {
+    var count = 0;
+    final client = MockClient((request) async {
+      if (request.method == 'GET') {
+        return modelResponse(['gemini-flash-latest']);
+      }
+      count++;
+      return response([summary('a')]);
+    });
+    await GeminiService(client, prefs, clock: () => now).validateKey(key);
+    await GeminiService(
+      client,
+      prefs,
+      clock: () => now,
+    ).summarize(key, [article('a')]);
+    final restarted = GeminiService(client, prefs, clock: () => now);
+    await expectLater(
+      restarted.summarize(key, [article('a')]),
+      throwsA(isA<BriefingException>()),
+    );
+    expect(count, 1);
+    now = now.add(const Duration(seconds: 66));
+    await restarted.summarize(key, [article('a')]);
+    expect(count, 2);
+    client.close();
+  });
   test('429 respects Retry-After and does not automatically retry', () async {
     var count = 0;
     final client = MockClient((_) async {
