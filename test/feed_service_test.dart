@@ -15,6 +15,84 @@ const rss = '''<rss version="2.0"><channel><item><title>SDK &amp; news</title>
 <pubDate>Wed, 21 Oct 2026 09:00:00 GMT</pubDate></item></channel></rss>''';
 
 void main() {
+  for (final zone in ['+0900', '+0000', '-0500', '+09:00']) {
+    test('RSS numeric timezone $zone is converted to UTC', () {
+      final article = parseFeed(rss.replaceFirst('GMT', zone), source).single;
+      final offset = zone == '+0000'
+          ? 0
+          : zone == '-0500'
+          ? -5
+          : 9;
+      expect(
+        article.published,
+        DateTime.utc(2026, 10, 21, 9).subtract(Duration(hours: offset)),
+      );
+    });
+  }
+  test('High-volume feeds cannot crowd out official or undated sources', () async {
+    final client = MockClient((r) async {
+      final busy = r.url.path == '/busy';
+      return http.Response(
+        '<rss><channel>${[for (var i = 0; i < (busy ? 20 : 1); i++) '<item><title>News $i</title><link>https://example.com${r.url.path}/$i</link>'
+              '${busy ? '<pubDate>2026-10-23T12:00:00Z</pubDate>' : ''}</item>'].join()}</channel></rss>',
+        200,
+      );
+    });
+    final result = await FeedService(client).load([
+      for (final id in ['busy', 'official', 'undated'])
+        FeedSource(
+          id: id,
+          name: id,
+          url: 'https://example.com/$id',
+          category: 'test',
+        ),
+    ]);
+    expect(result.articles, hasLength(10));
+    expect(result.articles.map((a) => a.source.id).take(3), [
+      'busy',
+      'official',
+      'undated',
+    ]);
+    expect(result.articles.where((a) => a.source.id == 'busy'), hasLength(8));
+    expect(result.warnings, isEmpty);
+    client.close();
+  });
+  test(
+    'Ten available sources each get a place, using their actual newest article',
+    () async {
+      final client = MockClient(
+        (r) async => http.Response('''<rss><channel>
+      <item><title>Old</title><link>https://example.com${r.url.path}/old</link><pubDate>Wed, 21 Oct 2026 09:00:00 +0900</pubDate></item>
+      <item><title>New</title><link>https://example.com${r.url.path}/new</link><pubDate>Wed, 21 Oct 2026 08:00:00 +0000</pubDate></item>
+      </channel></rss>''', 200),
+      );
+      final result = await FeedService(client).load([
+        for (var i = 0; i < 10; i++)
+          FeedSource(
+            id: '$i',
+            name: '$i',
+            url: 'https://example.com/$i',
+            category: 'test',
+          ),
+      ]);
+      expect(result.articles, hasLength(10));
+      expect(result.articles.map((a) => a.source.id).toSet(), hasLength(10));
+      expect(result.articles.every((a) => a.title == 'New'), isTrue);
+      client.close();
+    },
+  );
+  test(
+    'An unavailable feed reports a safe HTTP diagnosis without its body',
+    () async {
+      final client = MockClient(
+        (_) async => http.Response('private error body', 403),
+      );
+      final result = await FeedService(client).load([source]);
+      expect(result.warnings.single, contains('HTTP 403'));
+      expect(result.warnings.single, isNot(contains('private error body')));
+      client.close();
+    },
+  );
   test('RSS parses text, canonical article identity and RFC 822 dates', () {
     final article = parseFeed(rss, source).single;
     expect(article.title, 'SDK & news');

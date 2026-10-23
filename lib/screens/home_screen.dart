@@ -120,6 +120,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ),
           const SizedBox(height: 12),
+          if (app.articles.isNotEmpty) ...[
+            Text(
+              '${app.articles.map((a) => a.source.id).toSet().length}개 출처의 최신 소식을 골랐어요.',
+              style: const TextStyle(color: Color(0xFF60716D), fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+          ],
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -151,7 +158,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     child: Text(
                       app.loading
                           ? '새 소식을 모으고 있어요…'
-                          : '새 소식을 한 번에 세 줄로 정리하고 있어요…',
+                          : 'Google AI가 소식을 정리하고 있어요. 최대 2분 정도 걸릴 수 있어요…',
                       style: const TextStyle(fontSize: 12),
                     ),
                   ),

@@ -22,7 +22,7 @@ class KeyStore extends LocalStore {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   test('Cached summaries render first, only new items are batched, and refresh reuses the cache', () async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({'gemini_summary_model_policy': 1});
     final prefs = await SharedPreferences.getInstance();
     final store = KeyStore(prefs);
     await store.saveSources([

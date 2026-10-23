@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -54,7 +55,7 @@ class FeedService {
       sources.where((s) => s.enabled).map((s) async {
         try {
           return await _fetch(s, s.url);
-        } catch (_) {
+        } catch (error) {
           if (s.fallbackUrl != null) {
             try {
               final items = await _fetch(s, s.fallbackUrl!);
@@ -64,7 +65,15 @@ class FeedService {
               /* Report the source without exposing remote error bodies. */
             }
           }
-          warnings.add('${s.name} 피드를 불러오지 못했어요.');
+          final hint = error is TimeoutException
+              ? '시간 초과'
+              : error is HttpException &&
+                    RegExp(r'^HTTP \d{3}$').hasMatch(error.message)
+              ? error.message
+              : error is FormatException
+              ? '피드 형식 오류'
+              : '연결 오류';
+          warnings.add('${s.name} 피드를 불러오지 못했어요. ($hint)');
           return <Article>[];
         }
       }),
@@ -79,7 +88,25 @@ class FeedService {
           a.published ?? DateTime(1970),
         ),
       );
-    return FeedResult(items.take(10).toList(), warnings);
+    // Give every available source a place before taking a second article from
+    // any source. A high-volume community feed must not crowd out official news.
+    final bySource = <String, List<Article>>{};
+    for (final item in items) {
+      bySource.putIfAbsent(item.source.id, () => []).add(item);
+    }
+    final selected = <Article>[];
+    for (var round = 0; selected.length < 10; round++) {
+      var added = false;
+      for (final group in bySource.values) {
+        if (round < group.length) {
+          selected.add(group[round]);
+          added = true;
+          if (selected.length == 10) break;
+        }
+      }
+      if (!added) break;
+    }
+    return FeedResult(selected, warnings);
   }
 
   Future<List<Article>> _fetch(FeedSource source, String url) async {
@@ -87,7 +114,12 @@ class FeedService {
     // Validate redirects as well, rather than forwarding to arbitrary schemes/hosts.
     var uri = Uri.parse(url);
     for (var hop = 0; hop < 4; hop++) {
-      final request = http.Request('GET', uri)..followRedirects = false;
+      final request = http.Request('GET', uri)
+        ..followRedirects = false
+        ..headers.addAll({
+          'Accept': 'application/atom+xml, application/rss+xml, application/xml, text/xml',
+          'User-Agent': 'AI-Morning-Briefing RSS Reader',
+        });
       final response = await client
           .send(request)
           .timeout(const Duration(seconds: 15));
@@ -103,7 +135,7 @@ class FeedService {
       }
       if (response.statusCode != 200) {
         await response.stream.drain<void>();
-        throw const HttpException('Feed unavailable');
+        throw HttpException('HTTP ${response.statusCode}');
       }
       final bytes = <int>[];
       await for (final chunk in response.stream.timeout(
@@ -138,20 +170,61 @@ List<Article> parseFeed(String raw, FeedSource source, [Uri? base]) {
   String field(XmlElement e, List<String> names) {
     for (final name in names) {
       final matches = e.childElements.where((c) => c.name.local == name);
-      if (matches.isNotEmpty) return matches.first.innerText.trim();
+      if (matches.isNotEmpty && matches.first.innerText.trim().isNotEmpty) {
+        return matches.first.innerText.trim();
+      }
     }
     return '';
   }
 
   DateTime? date(String raw) {
-    try {
-      return DateTime.parse(raw);
-    } catch (_) {
-      try {
-        return HttpDate.parse(raw);
-      } catch (_) {
-        return null;
+    final iso = DateTime.tryParse(raw);
+    if (iso != null) return iso;
+    // HttpDate accepts HTTP's GMT dates, but RSS commonly uses RFC 822 numeric
+    // offsets. Interpret the offset instead of dropping otherwise valid dates.
+    final rss = RegExp(
+      r'^(?:[A-Za-z]{3},?\s+)?(\d{1,2})\s+([A-Za-z]{3})\s+(\d{2}|\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?\s+([+-])(\d{2}):?(\d{2})$',
+    ).firstMatch(raw.trim());
+    if (rss != null) {
+      const months = [
+        'jan',
+        'feb',
+        'mar',
+        'apr',
+        'may',
+        'jun',
+        'jul',
+        'aug',
+        'sep',
+        'oct',
+        'nov',
+        'dec',
+      ];
+      final month = months.indexOf(rss.group(2)!.toLowerCase()) + 1;
+      var year = int.parse(rss.group(3)!);
+      if (year < 100) year += year < 50 ? 2000 : 1900;
+      final hourOffset = int.parse(rss.group(8)!);
+      final minuteOffset = int.parse(rss.group(9)!);
+      if (month != 0 && hourOffset <= 23 && minuteOffset < 60) {
+        final local = DateTime.utc(
+          year,
+          month,
+          int.parse(rss.group(1)!),
+          int.parse(rss.group(4)!),
+          int.parse(rss.group(5)!),
+          int.parse(rss.group(6) ?? '0'),
+        );
+        final offset = Duration(
+          minutes:
+              (hourOffset * 60 + minuteOffset) * (rss.group(7) == '+' ? 1 : -1),
+        );
+        return local.subtract(offset);
       }
+    }
+    try {
+      return HttpDate.parse(raw);
+    } catch (_) {
+      return null;
     }
   }
 

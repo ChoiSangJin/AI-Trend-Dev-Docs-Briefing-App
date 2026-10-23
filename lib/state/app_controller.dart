@@ -82,7 +82,7 @@ class AppController extends ChangeNotifier {
     hasKey = true;
     streak = await store.visit(DateTime.now());
     notifyListeners();
-    // The key check uses the same quota gate; feed loading still works immediately.
+    // Key checks do not consume generation quota; load and summarize immediately.
     await refresh();
   }
 
