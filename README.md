@@ -35,6 +35,7 @@ flutter test
 dart run tool/feed_smoke.dart
 flutter run -d <android-device-id>
 flutter build apk --debug --target-platform android-arm64
+python3 tool/verify_apk.py build/app/outputs/flutter-apk/app-debug.apk
 ```
 
 `tool/feed_smoke.dart`는 실제 GitHub SDK Atom 피드를 읽는 네트워크 확인용입니다. 단위·위젯 테스트는 실제 Gemini 열쇠 없이 실행됩니다. 실제 Gemini 응답, Keystore, 클립보드, 브라우저 복귀, 권한 거절·허용, 재부팅 후 알림은 Android 기기에서 별도 확인해야 합니다.
