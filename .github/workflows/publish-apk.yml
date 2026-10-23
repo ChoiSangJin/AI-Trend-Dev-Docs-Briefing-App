@@ -1,0 +1,32 @@
+name: Publish verified Android APK
+on:
+  push:
+    branches: ['release-artifacts/v1.0.3']
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Verify the signed APK payload and source
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 75d560a85c26f05a60b1dbe9e767d3087315fb89 origin/main
+          python3 tool/verify_apk.py release-assets/v1.0.3/ai-morning-briefing-arm64.apk
+          cd release-assets/v1.0.3
+          sha256sum -c SHA256SUMS.txt
+      - name: Publish v1.0.3 from the merged source commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v1.0.3 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target 75d560a85c26f05a60b1dbe9e767d3087315fb89 \
+            --title 'AI 모닝 브리핑 v1.0.3' \
+            --notes-file release-assets/v1.0.3/RELEASE_NOTES.md \
+            release-assets/v1.0.3/ai-morning-briefing-arm64.apk \
+            release-assets/v1.0.3/SHA256SUMS.txt
