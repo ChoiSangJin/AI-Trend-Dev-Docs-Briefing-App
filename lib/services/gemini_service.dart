@@ -14,18 +14,23 @@ class BriefingException implements Exception {
 }
 
 class GeminiService {
-  GeminiService(this.client, this.prefs, {DateTime Function()? clock})
-    : clock = clock ?? DateTime.now;
+  GeminiService(
+    this.client,
+    this.prefs, {
+    DateTime Function()? clock,
+    this.requestTimeout = const Duration(seconds: 120),
+  }) : clock = clock ?? DateTime.now;
   final http.Client client;
   final SharedPreferences prefs;
   final DateTime Function() clock;
+  final Duration requestTimeout;
   bool _busy = false;
   static const host = 'generativelanguage.googleapis.com';
   static const preferredModels = [
-    'gemini-flash-latest',
-    'gemini-2.5-flash',
-    'gemini-flash-lite-latest',
     'gemini-2.5-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-2.5-flash',
+    'gemini-flash-latest',
   ];
   static final stableFlash = RegExp(
     r'^gemini-(\d+)(?:\.(\d+))?-flash(?:-lite)?$',
@@ -129,20 +134,34 @@ class GeminiService {
       throw BriefingException('$seconds초 후 다시 시도해 주세요. 무료 사용량을 보호하고 있어요.');
     }
     _busy = true;
+    final abort = Completer<void>();
     var receivedResponse = false;
     try {
       // Generation requests share a persistent gate. Key checks do not generate content.
       await prefs.setInt('gemini_next_request', now + 65000);
-      final response = await client
-          .post(
-            Uri.https(host, '/v1beta/models/$model:generateContent'),
-            headers: {
+      final request =
+          http.AbortableRequest(
+              'POST',
+              Uri.https(host, '/v1beta/models/$model:generateContent'),
+              abortTrigger: abort.future,
+            )
+            ..headers.addAll({
               'Content-Type': 'application/json',
               'x-goog-api-key': key,
+            })
+            ..body = jsonEncode(body);
+      // Bound the entire response, including its body, and cancel the actual
+      // transport on timeout so a retry cannot overlap an abandoned request.
+      final response = await client
+          .send(request)
+          .then(http.Response.fromStream)
+          .timeout(
+            requestTimeout,
+            onTimeout: () {
+              abort.complete();
+              throw TimeoutException('Generation deadline');
             },
-            body: jsonEncode(body),
-          )
-          .timeout(const Duration(seconds: 60));
+          );
       receivedResponse = true;
       await _requireSuccess(response, generation: true);
       final json =
@@ -164,7 +183,7 @@ class GeminiService {
       rethrow;
     } on TimeoutException {
       throw const BriefingException(
-        'Google AI 응답 대기 시간이 초과됐어요. 인터넷 연결을 확인하고 다시 시도해 주세요.',
+        'Google AI 요약 응답이 제한 시간 안에 완료되지 않았어요. 키 오류로 확인된 것은 아니며, 서버 지연이나 네트워크 문제일 수 있어요. 잠시 후 다시 시도해 주세요.',
       );
     } on http.ClientException {
       throw const BriefingException(
@@ -177,6 +196,7 @@ class GeminiService {
             : 'Google 요청을 보내지 못했어요. 복사한 API 키와 기기 연결을 확인해 주세요. (응답 코드 없음)',
       );
     } finally {
+      if (!abort.isCompleted) abort.complete();
       _busy = false;
     }
   }
@@ -255,6 +275,7 @@ class GeminiService {
         );
       }
       await prefs.setString('gemini_model', selected);
+      await prefs.setInt('gemini_summary_model_policy', 1);
     } on BriefingException {
       rethrow;
     } on TimeoutException {
@@ -279,12 +300,19 @@ class GeminiService {
     if (articles.length > 10) {
       throw ArgumentError('A batch may contain at most 10 articles');
     }
+    // Upgrade existing installations that selected a heavier Flash alias before
+    // the short-summary model policy existed. Only use a model Google lists.
+    if (prefs.getInt('gemini_summary_model_policy') != 1) {
+      await validateKey(key);
+    }
+    String compact(String value, int limit) =>
+        String.fromCharCodes(value.runes.take(limit));
     final input = articles
         .map(
           (a) => {
             'id': a.id,
-            'title': a.title,
-            'feed_excerpt': a.excerpt,
+            'title': compact(a.title, 180),
+            'feed_excerpt': compact(a.excerpt, 1200),
             'source': a.source.name,
           },
         )
@@ -298,6 +326,7 @@ class GeminiService {
                 '주어진 AI 뉴스 및 개발자 문서 업데이트를 한국어로 설명하라. '
                 '각 입력 id를 그대로 한 번씩 반환하고, 직관적인 ko_title, 핵심 내용 summary_lines 문자열 정확히 3개, '
                 '핵심 기술 용어 1개의 초보자용 한 줄 해설 term_explanation을 작성하라. '
+                'ko_title은 40자 이내, summary_lines의 각 줄은 60자 이내, term_explanation은 80자 이내로 간결하게 작성하라. '
                 '제공된 발췌문만 근거로 하며, 부족한 정보는 부족하다고 명시하고 사실을 추측하지 마라.',
           },
         ],
@@ -311,7 +340,7 @@ class GeminiService {
       ],
       'generationConfig': {
         'temperature': 0.2,
-        'maxOutputTokens': 8192,
+        'maxOutputTokens': 6144,
         if (model.startsWith('gemini-2.5-'))
           'thinkingConfig': {'thinkingBudget': 0},
         'responseMimeType': 'application/json',

@@ -56,7 +56,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late SharedPreferences prefs;
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({'gemini_summary_model_policy': 1});
     prefs = await SharedPreferences.getInstance();
   });
   test('A key works without the retired fixed model, and first summary can run immediately', () async {

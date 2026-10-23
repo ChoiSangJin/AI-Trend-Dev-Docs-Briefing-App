@@ -62,7 +62,7 @@ void main() {
   late SharedPreferences prefs;
   late DateTime now;
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({'gemini_summary_model_policy': 1});
     prefs = await SharedPreferences.getInstance();
     now = DateTime.utc(2026, 10, 23);
   });
