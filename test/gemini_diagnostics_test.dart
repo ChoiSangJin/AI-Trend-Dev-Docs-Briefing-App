@@ -305,4 +305,32 @@ void main() {
     expect(prefs.containsKey('gemini_model'), isFalse);
     client.close();
   });
+  for (final generation in [false, true]) {
+    test(
+      'Local request construction failures never invent an HTTP response: $generation',
+      () async {
+        final client = MockClient(
+          (_) async => throw ArgumentError('invalid header $testKey'),
+        );
+        final service = GeminiService(client, prefs);
+        await expectLater(
+          generation
+              ? service.summarize(testKey, [article])
+              : service.validateKey(testKey),
+          throwsA(
+            isA<BriefingException>().having(
+              (e) => e.message,
+              'no fabricated status',
+              allOf(
+                contains('응답 코드 없음'),
+                isNot(contains('HTTP 200')),
+                isNot(contains(testKey)),
+              ),
+            ),
+          ),
+        );
+        client.close();
+      },
+    );
+  }
 }

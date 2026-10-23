@@ -129,6 +129,7 @@ class GeminiService {
       throw BriefingException('$seconds초 후 다시 시도해 주세요. 무료 사용량을 보호하고 있어요.');
     }
     _busy = true;
+    var receivedResponse = false;
     try {
       // Generation requests share a persistent gate. Key checks do not generate content.
       await prefs.setInt('gemini_next_request', now + 65000);
@@ -142,6 +143,7 @@ class GeminiService {
             body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 60));
+      receivedResponse = true;
       await _requireSuccess(response, generation: true);
       final json =
           jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
@@ -169,8 +171,10 @@ class GeminiService {
         'Google AI에 연결하지 못했어요. 인터넷·VPN·네트워크 차단 여부를 확인해 주세요.',
       );
     } catch (_) {
-      throw const BriefingException(
-        'Google AI 응답이 완전하지 않거나 형식이 달라 처리하지 못했어요. 다시 시도해 주세요. (HTTP 200)',
+      throw BriefingException(
+        receivedResponse
+            ? 'Google AI 응답이 완전하지 않거나 형식이 달라 처리하지 못했어요. 다시 시도해 주세요. (HTTP 200)'
+            : 'Google 요청을 보내지 못했어요. 복사한 API 키와 기기 연결을 확인해 주세요. (응답 코드 없음)',
       );
     } finally {
       _busy = false;
@@ -182,6 +186,7 @@ class GeminiService {
     if (trimmedKey.isEmpty) {
       throw const BriefingException('API 키를 복사해서 가져오세요.');
     }
+    var receivedResponse = false;
     try {
       final available = <String>{};
       String? pageToken;
@@ -195,6 +200,7 @@ class GeminiService {
               headers: {'x-goog-api-key': trimmedKey},
             )
             .timeout(const Duration(seconds: 20));
+        receivedResponse = true;
         await _requireSuccess(response);
         final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map;
         for (final item in data['models'] as List? ?? const []) {
@@ -260,8 +266,10 @@ class GeminiService {
         'Google 키 확인에 연결하지 못했어요. 인터넷·VPN·네트워크 차단 여부를 확인해 주세요.',
       );
     } catch (_) {
-      throw const BriefingException(
-        'Google 모델 목록을 처리하지 못했어요. 앱 업데이트를 확인해 주세요. (HTTP 200)',
+      throw BriefingException(
+        receivedResponse
+            ? 'Google 모델 목록 또는 기기 저장 정보를 처리하지 못했어요. 앱 업데이트와 저장 공간을 확인해 주세요. (HTTP 200)'
+            : 'Google 키 확인 요청을 보내지 못했어요. API 키를 한 줄로 복사했는지 확인해 주세요. (응답 코드 없음)',
       );
     }
   }
