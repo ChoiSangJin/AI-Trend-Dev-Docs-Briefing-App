@@ -1,0 +1,176 @@
+import 'dart:convert';
+
+import 'package:ai_briefing/models/briefing.dart';
+import 'package:ai_briefing/services/gemini_service.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+const feed = FeedSource(
+  id: 'test',
+  name: 'Test',
+  url: 'https://example.com/feed',
+  category: 'test',
+);
+const key = 'AIza_test_fixture_not_a_real_key_123456789';
+Article article(String id) => Article(
+  id: id,
+  title: 'Release $id',
+  link: 'https://example.com/$id',
+  excerpt: 'New tools',
+  source: feed,
+);
+Map<String, dynamic> summary(String id) => {
+  'id': id,
+  'ko_title': '새 도구 출시',
+  'summary_lines': ['첫 번째 내용', '두 번째 내용', '세 번째 내용'],
+  'term_explanation': 'SDK: 개발 도구 모음',
+};
+http.Response response(dynamic value) => http.Response(
+  jsonEncode({
+    'candidates': [
+      {
+        'finishReason': 'STOP',
+        'content': {
+          'parts': [
+            {'text': jsonEncode(value)},
+          ],
+        },
+      },
+    ],
+  }),
+  200,
+  headers: {'content-type': 'application/json; charset=utf-8'},
+);
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  late SharedPreferences prefs;
+  late DateTime now;
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    prefs = await SharedPreferences.getInstance();
+    now = DateTime.utc(2026, 10, 23);
+  });
+  test('Ten uncached articles use exactly one structured request with a header key', () async {
+    var count = 0;
+    final client = MockClient((r) async {
+      count++;
+      expect(r.url.query, isEmpty);
+      expect(r.headers['x-goog-api-key'], key);
+      final body = jsonDecode(r.body);
+      expect(body['generationConfig']['responseMimeType'], 'application/json');
+      final input =
+          jsonDecode(body['contents'][0]['parts'][0]['text'] as String) as List;
+      expect(input, hasLength(10));
+      return response([for (var i = 0; i < 10; i++) summary('$i')]);
+    });
+    final result = await GeminiService(
+      client,
+      prefs,
+      clock: () => now,
+    ).summarize(key, [for (var i = 0; i < 10; i++) article('$i')]);
+    expect(count, 1);
+    expect(result, hasLength(10));
+    client.close();
+  });
+  test('Empty batches make no network request', () async {
+    final client = MockClient((_) async => throw StateError('Unexpected call'));
+    expect(await GeminiService(client, prefs).summarize(key, []), isEmpty);
+    client.close();
+  });
+  test(
+    'Persistent quota gate covers validation and subsequent service instances',
+    () async {
+      var count = 0;
+      final client = MockClient((_) async {
+        count++;
+        return response([summary('a')]);
+      });
+      await GeminiService(client, prefs, clock: () => now).validateKey(key);
+      final restarted = GeminiService(client, prefs, clock: () => now);
+      await expectLater(
+        restarted.summarize(key, [article('a')]),
+        throwsA(isA<BriefingException>()),
+      );
+      expect(count, 1);
+      now = now.add(const Duration(seconds: 66));
+      await restarted.summarize(key, [article('a')]);
+      expect(count, 2);
+      client.close();
+    },
+  );
+  test('429 respects Retry-After and does not automatically retry', () async {
+    var count = 0;
+    final client = MockClient((_) async {
+      count++;
+      return http.Response('', 429, headers: {'retry-after': '180'});
+    });
+    final service = GeminiService(client, prefs, clock: () => now);
+    await expectLater(
+      service.summarize(key, [article('a')]),
+      throwsA(isA<BriefingException>()),
+    );
+    now = now.add(const Duration(seconds: 90));
+    await expectLater(
+      service.summarize(key, [article('a')]),
+      throwsA(isA<BriefingException>()),
+    );
+    expect(count, 1);
+    client.close();
+  });
+  for (final invalid in [
+    [summary('wrong-id')],
+    [summary('a'), summary('a')],
+    [
+      {
+        ...summary('a'),
+        'summary_lines': ['only one'],
+      },
+    ],
+    [
+      {...summary('a'), 'ko_title': ''},
+    ],
+  ]) {
+    test(
+      'Invalid batch is rejected atomically: ${jsonEncode(invalid)}',
+      () async {
+        final client = MockClient((_) async => response(invalid));
+        await expectLater(
+          GeminiService(
+            client,
+            prefs,
+            clock: () => now,
+          ).summarize(key, [article('a')]),
+          throwsA(isA<BriefingException>()),
+        );
+        client.close();
+      },
+    );
+  }
+  test('Truncated output cannot become a cached summary', () async {
+    final client = MockClient(
+      (_) async => http.Response(
+        jsonEncode({
+          'candidates': [
+            {
+              'finishReason': 'MAX_TOKENS',
+              'content': {
+                'parts': [
+                  {'text': '[]'},
+                ],
+              },
+            },
+          ],
+        }),
+        200,
+      ),
+    );
+    await expectLater(
+      GeminiService(client, prefs).summarize(key, [article('a')]),
+      throwsA(isA<BriefingException>()),
+    );
+    client.close();
+  });
+}
