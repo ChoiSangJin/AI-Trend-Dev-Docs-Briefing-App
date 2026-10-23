@@ -63,14 +63,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late SharedPreferences prefs;
   setUp(() async {
-    SharedPreferences.setMockInitialValues({'gemini_summary_model_policy': 1});
+    SharedPreferences.setMockInitialValues({'gemini_summary_model_policy': 2});
     prefs = await SharedPreferences.getInstance();
   });
   test(
     'Existing heavy model selections migrate once to an available Lite model',
     () async {
-      await prefs.remove('gemini_summary_model_policy');
-      await prefs.setString('gemini_model', 'gemini-flash-latest');
+      await prefs.setInt('gemini_summary_model_policy', 1);
+      await prefs.setString('gemini_model', 'gemini-2.5-flash-lite');
       var discoveries = 0, generations = 0;
       var now = DateTime.utc(2026, 10, 23);
       final client = MockClient((r) async {
@@ -80,18 +80,20 @@ void main() {
             'gemini-flash-latest',
             'gemini-flash-lite-latest',
             'gemini-2.5-flash-lite',
+            'gemini-3.1-flash-lite',
+            'gemini-3.5-flash-lite',
           ]);
         }
         generations++;
         expect(
           r.url.path,
-          '/v1beta/models/gemini-2.5-flash-lite:generateContent',
+          '/v1beta/models/gemini-3.5-flash-lite:generateContent',
         );
         expect(
-          jsonDecode(
-            r.body,
-          )['generationConfig']['thinkingConfig']['thinkingBudget'],
-          0,
+          (jsonDecode(r.body)['generationConfig'] as Map).containsKey(
+            'thinkingConfig',
+          ),
+          isFalse,
         );
         return generated();
       });
@@ -101,7 +103,7 @@ void main() {
       await service.summarize('test-key', [article()]);
       expect(discoveries, 1);
       expect(generations, 2);
-      expect(prefs.getInt('gemini_summary_model_policy'), 1);
+      expect(prefs.getInt('gemini_summary_model_policy'), 2);
       client.close();
     },
   );
