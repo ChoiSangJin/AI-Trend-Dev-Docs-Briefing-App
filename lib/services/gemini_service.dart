@@ -58,7 +58,7 @@ class GeminiService {
           response.statusCode == 401 ||
           response.statusCode == 403) {
         throw const BriefingException(
-          '열쇠 또는 구글 사용 권한을 확인해 주세요. 설정에서 열쇠를 바꿀 수 있어요.',
+          'API 키 또는 구글 사용 권한을 확인해 주세요. 설정에서 API 키를 바꿀 수 있어요.',
         );
       }
       if (response.statusCode != 200) {
@@ -91,10 +91,11 @@ class GeminiService {
   }
 
   Future<void> validateKey(String key) async {
-    if (!RegExp(r'^AIza[A-Za-z0-9_-]{20,}$').hasMatch(key)) {
-      throw const BriefingException('AIza로 시작하는 열쇠를 빠짐없이 복사해 주세요.');
+    final trimmedKey = key.trim();
+    if (trimmedKey.isEmpty) {
+      throw const BriefingException('API 키를 복사해서 가져오세요.');
     }
-    await _generate(key, {
+    await _generate(trimmedKey, {
       'contents': [
         {
           'parts': [

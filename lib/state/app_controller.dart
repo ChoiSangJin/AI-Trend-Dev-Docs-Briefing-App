@@ -137,7 +137,9 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     try {
       final key = await store.readKey();
-      if (key == null) throw const BriefingException('설정에서 AI 열쇠를 다시 등록해 주세요.');
+      if (key == null) {
+        throw const BriefingException('설정에서 Gemini API 키를 다시 등록해 주세요.');
+      }
       final result = await gemini.summarize(key, missing);
       cache.addEntries(result.map((b) => MapEntry(b.id, b)));
       await store.saveCache(cache);
