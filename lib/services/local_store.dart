@@ -50,9 +50,15 @@ class LocalStore {
     try {
       final raw = prefs.getString('sources');
       if (raw == null) return List.of(defaultFeedSources);
-      return (jsonDecode(raw) as List)
+      final saved = (jsonDecode(raw) as List)
           .map((j) => FeedSource.fromJson(Map<String, dynamic>.from(j as Map)))
           .toList();
+      // Keep user toggles/custom feeds and append newly shipped built-ins.
+      final ids = saved.map((s) => s.id).toSet();
+      return [
+        ...saved,
+        ...defaultFeedSources.where((s) => !ids.contains(s.id)),
+      ];
     } catch (_) {
       return List.of(defaultFeedSources);
     }

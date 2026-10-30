@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:ai_briefing/constants/feed_sources.dart';
+
 import 'package:ai_briefing/models/briefing.dart';
 import 'package:ai_briefing/services/feed_service.dart';
 import 'package:ai_briefing/services/gemini_service.dart';
@@ -26,6 +28,7 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     final store = KeyStore(prefs);
     await store.saveSources([
+      ...defaultFeedSources.map((s) => s.withEnabled(false)),
       const FeedSource(
         id: 'test',
         name: 'Test',
