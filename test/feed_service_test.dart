@@ -15,6 +15,51 @@ const rss = '''<rss version="2.0"><channel><item><title>SDK &amp; news</title>
 <pubDate>Wed, 21 Oct 2026 09:00:00 GMT</pubDate></item></channel></rss>''';
 
 void main() {
+  test('An empty valid RSS is successful and does not trigger fallback', () async {
+    var calls = 0;
+    final client = MockClient((_) async {
+      calls++;
+      return http.Response(
+        '<rss version="2.0"><channel><title>No updates</title></channel></rss>',
+        200,
+      );
+    });
+    final result = await FeedService(client).load([
+      const FeedSource(
+        id: 'empty',
+        name: 'Empty',
+        url: 'https://example.com/feed',
+        fallbackUrl: 'https://example.com/fallback',
+        category: 'test',
+      ),
+    ]);
+    expect(result.articles, isEmpty);
+    expect(result.warnings, isEmpty);
+    expect(calls, 1);
+    client.close();
+  });
+  test(
+    'HTML received with HTTP 200 is distinguished from an empty feed',
+    () async {
+      final client = MockClient(
+        (_) async => http.Response('<html><body>Blocked</body></html>', 200),
+      );
+      final result = await FeedService(client).load([source]);
+      expect(result.warnings.single, contains('다른 문서'));
+      client.close();
+    },
+  );
+  test(
+    'Large feed failures explain the byte limit without disclosing content',
+    () async {
+      final client = MockClient(
+        (_) async => http.Response('x' * (2 * 1024 * 1024 + 1), 200),
+      );
+      final result = await FeedService(client).load([source]);
+      expect(result.warnings.single, contains('2MB'));
+      client.close();
+    },
+  );
   for (final zone in ['+0900', '+0000', '-0500', '+09:00']) {
     test('RSS numeric timezone $zone is converted to UTC', () {
       final article = parseFeed(rss.replaceFirst('GMT', zone), source).single;
@@ -158,7 +203,7 @@ void main() {
         'https://example.com/fallback',
       ]);
       expect(result.articles, hasLength(1));
-      expect(result.warnings.single, contains('arXiv'));
+      expect(result.warnings.single, contains('대체 피드'));
       client.close();
     },
   );

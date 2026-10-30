@@ -45,9 +45,8 @@ const defaultFeedSources = <FeedSource>[
   ),
   FeedSource(
     id: 'papers',
-    name: 'Daily Papers · RSSHub',
-    url: 'https://rsshub.app/huggingface/daily-papers',
-    fallbackUrl: 'https://export.arxiv.org/rss/cs.AI',
+    name: 'arXiv · cs.AI',
+    url: 'https://export.arxiv.org/rss/cs.AI',
     category: '리서치 & 인사이트',
   ),
   FeedSource(

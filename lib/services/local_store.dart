@@ -54,6 +54,16 @@ class LocalStore {
           .map((j) => FeedSource.fromJson(Map<String, dynamic>.from(j as Map)))
           .toList();
       // Keep user toggles/custom feeds and append newly shipped built-ins.
+      for (var i = 0; i < saved.length; i++) {
+        final source = saved[i];
+        if (!source.custom &&
+            source.id == 'papers' &&
+            source.url == 'https://rsshub.app/huggingface/daily-papers') {
+          saved[i] = defaultFeedSources
+              .firstWhere((s) => s.id == 'papers')
+              .withEnabled(source.enabled);
+        }
+      }
       final ids = saved.map((s) => s.id).toSet();
       return [
         ...saved,
