@@ -57,6 +57,9 @@ class FeedService {
   final http.Client client;
   final DateTime Function() clock;
   final Map<String, DateTime> _retryAt = {};
+  final Map<String, ({DateTime fetched, List<Article> articles})> _apiCache =
+      {};
+  final Map<String, DateTime> _apiPause = {};
   Future<FeedResult> load(List<FeedSource> sources) async {
     final warnings = <String>[];
     final groups = await Future.wait(
@@ -120,6 +123,38 @@ class FeedService {
   }
 
   Future<List<Article>> _fetch(FeedSource source, String url) async {
+    if (!source.custom &&
+        url == source.url &&
+        const [
+          'github',
+          'hn',
+          'dev',
+          'hf',
+          'stack',
+          'arxiv',
+        ].contains(source.format)) {
+      final cached = _apiCache[source.url];
+      if (cached != null &&
+          clock().difference(cached.fetched) < const Duration(minutes: 15)) {
+        return cached.articles;
+      }
+      final paused = _apiPause[source.url];
+      if (paused != null && paused.isAfter(clock())) {
+        throw const _FeedFailure('API 서버 대기 지침·할당량에 따라 잠시 요청을 쉬고 있어요');
+      }
+      final result = await _loadApi(source);
+      _apiCache[source.url] = (fetched: clock(), articles: result);
+      return result;
+    }
+    final response = await _fetchBytes(source, url);
+    return parseFeed(utf8.decode(response.bytes), source, response.uri);
+  }
+
+  Future<({List<int> bytes, Uri uri})> _fetchBytes(
+    FeedSource source,
+    String url, {
+    bool json = false,
+  }) async {
     if (!isSafeWebUrl(url)) throw const FormatException('HTTPS feed required');
     final retryAt = _retryAt[url];
     if (retryAt != null && retryAt.isAfter(clock())) {
@@ -136,7 +171,11 @@ class FeedService {
       final request = http.Request('GET', uri)
         ..followRedirects = false
         ..headers.addAll({
-          'Accept': 'application/atom+xml, application/rss+xml, application/xml, text/xml',
+          'Accept': json
+              ? (uri.host == 'dev.to'
+                    ? 'application/vnd.forem.api-v1+json'
+                    : 'application/json')
+              : 'application/atom+xml, application/rss+xml, application/xml, text/xml',
           'User-Agent': 'AI-Morning-Briefing RSS Reader',
         });
       final response = await client
@@ -154,6 +193,21 @@ class FeedService {
       }
       if (response.statusCode != 200) {
         await response.stream.drain<void>();
+        if (json &&
+            response.statusCode == 403 &&
+            uri.host == 'api.github.com' &&
+            response.headers['x-ratelimit-remaining'] == '0') {
+          final reset = int.tryParse(
+            response.headers['x-ratelimit-reset'] ?? '',
+          );
+          final seconds = reset == null
+              ? 3600
+              : reset - clock().millisecondsSinceEpoch ~/ 1000;
+          _apiPause[source.url] = clock().add(
+            Duration(seconds: seconds.clamp(60, 86400)),
+          );
+          throw const _FeedFailure('HTTP 403 · GitHub 무료 API 호출 한도에 도달했어요');
+        }
         if (response.statusCode == 429) {
           final value = response.headers['retry-after'] ?? '';
           final now = clock();
@@ -180,10 +234,141 @@ class FeedService {
           throw _FeedFailure('피드 용량이 ${limitMB}MB 제한을 초과했어요');
         }
       }
-      final articles = parseFeed(utf8.decode(bytes), source, uri);
-      return articles;
+      return (bytes: bytes, uri: uri);
     }
     throw const FormatException('Too many redirects');
+  }
+
+  Future<dynamic> _json(FeedSource source, String url) async => jsonDecode(
+    utf8.decode((await _fetchBytes(source, url, json: true)).bytes),
+  );
+
+  Future<List<Article>> _loadApi(FeedSource source) async {
+    const hosts = {
+      'github': 'api.github.com',
+      'hn': 'hacker-news.firebaseio.com',
+      'dev': 'dev.to',
+      'hf': 'huggingface.co',
+      'stack': 'api.stackexchange.com',
+      'arxiv': 'export.arxiv.org',
+    };
+    if (Uri.parse(source.url).host != hosts[source.format]) {
+      throw const _FeedFailure('API 소스 주소가 올바르지 않아요');
+    }
+    if (source.format == 'arxiv') {
+      final response = await _fetchBytes(source, source.url);
+      return parseFeed(utf8.decode(response.bytes), source, response.uri);
+    }
+    final data = await _json(source, source.url);
+    List<dynamic> rows;
+    if (source.format == 'hn') {
+      if (data is! List) throw const FormatException('Invalid HN list');
+      final ids = data.whereType<int>().take(10).toList();
+      rows = [];
+      // Limit fan-out to five concurrent requests and 10 stories per refresh.
+      for (var i = 0; i < ids.length; i += 5) {
+        final batch = ids.skip(i).take(5);
+        rows.addAll(
+          await Future.wait(
+            batch.map(
+              (id) => _json(
+                source,
+                'https://hacker-news.firebaseio.com/v0/item/$id.json',
+              ),
+            ),
+          ),
+        );
+      }
+    } else if (source.format == 'stack') {
+      if (data is! Map || data['items'] is! List) {
+        throw const FormatException('Invalid question list');
+      }
+      final backoff = data['backoff'];
+      if (backoff is num && backoff > 0) {
+        _apiPause[source.url] = clock().add(
+          Duration(seconds: backoff.toInt().clamp(1, 86400)),
+        );
+      }
+      if (data['quota_remaining'] == 0) {
+        _apiPause[source.url] = clock().add(const Duration(hours: 24));
+      }
+      rows = data['items'] as List;
+    } else {
+      if (data is! List) throw const FormatException('Invalid API list');
+      rows = data;
+    }
+    String str(dynamic value) => value is String ? value : '';
+    DateTime? timestamp(dynamic value) => value is num
+        ? DateTime.fromMillisecondsSinceEpoch(value.toInt() * 1000, isUtc: true)
+        : DateTime.tryParse(str(value));
+    final result = <Article>[];
+    for (final row in rows.take(30)) {
+      if (row is! Map) continue;
+      String title, link, excerpt;
+      DateTime? published;
+      switch (source.format) {
+        case 'github':
+          if (row['draft'] == true || row['prerelease'] == true) continue;
+          title = str(row['name']).trim().isEmpty
+              ? str(row['tag_name'])
+              : str(row['name']);
+          link = str(row['html_url']);
+          excerpt = str(row['body']);
+          published = timestamp(row['published_at']);
+        case 'hn':
+          title = str(row['title']);
+          if (row['type'] != 'story' ||
+              row['deleted'] == true ||
+              row['dead'] == true) {
+            continue;
+          }
+          if (row['id'] is! int) continue;
+          link = 'https://news.ycombinator.com/item?id=${row['id']}';
+          excerpt =
+              'HN 항목 메타데이터 · ${row['score'] is num ? row['score'] : 0} 추천점 · ${row['descendants'] is num ? row['descendants'] : 0} 댓글. ${str(row['text'])}';
+          published = timestamp(row['time']);
+        case 'dev':
+          title = str(row['title']);
+          link = str(row['url']);
+          excerpt = str(row['description']);
+          published = timestamp(row['published_at']);
+        case 'hf':
+          final id = str(row['id']);
+          if (!RegExp(
+                r'^[A-Za-z0-9][A-Za-z0-9_.-]*(/[A-Za-z0-9][A-Za-z0-9_.-]*)?$',
+              ).hasMatch(id) ||
+              row['private'] == true) {
+            continue;
+          }
+          title = '모델 정보 · $id';
+          link = 'https://huggingface.co/$id';
+          excerpt =
+              '공개 모델 메타데이터. 다운로드 ${row['downloads'] is num ? row['downloads'] : 0}, 좋아요 ${row['likes'] is num ? row['likes'] : 0}. 새 릴리스나 성능 검증을 뜻하지 않습니다.';
+          published = timestamp(row['createdAt']);
+        case 'stack':
+          title = str(row['title']);
+          link = str(row['link']);
+          excerpt =
+              '커뮤니티 질문 메타데이터 · 추천 점수 ${row['score'] is num ? row['score'] : 0}, 답변 ${row['answer_count'] is num ? row['answer_count'] : 0}개. 질문 제목만 제공하며 답변 본문이나 검증된 해결책을 제공하는 것은 아닙니다.';
+          published = timestamp(row['creation_date']);
+        default:
+          throw const FormatException('Unknown API format');
+      }
+      title = plainText(title);
+      excerpt = plainText(excerpt);
+      if (title.isEmpty || !isSafeWebUrl(link)) continue;
+      result.add(
+        Article(
+          id: link,
+          title: title,
+          link: link,
+          excerpt: String.fromCharCodes(excerpt.runes.take(3500)),
+          source: source,
+          published: published,
+        ),
+      );
+    }
+    return result;
   }
 }
 
@@ -285,7 +470,13 @@ List<Article> parseFeed(String raw, FeedSource source, [Uri? base]) {
           }
         }
         if (link.isNotEmpty) {
-          link = (base ?? Uri.parse(source.url)).resolve(link).toString();
+          var resolved = (base ?? Uri.parse(source.url)).resolve(link);
+          if (source.format == 'arxiv' &&
+              resolved.scheme == 'http' &&
+              resolved.host == 'arxiv.org') {
+            resolved = resolved.replace(scheme: 'https');
+          }
+          link = resolved.toString();
         }
         final excerpt = plainText(
           field(e, ['description', 'summary', 'encoded', 'content']),

@@ -21,7 +21,8 @@ void main() {
         ),
       ]);
       final paper = store.readSources().firstWhere((s) => s.id == 'papers');
-      expect(paper.url, 'https://export.arxiv.org/rss/cs.AI');
+      expect(paper.format, 'arxiv');
+      expect(paper.url, contains('/api/query'));
       expect(paper.enabled, isFalse);
     },
   );
