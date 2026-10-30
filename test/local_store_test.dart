@@ -5,6 +5,26 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test(
+    'Old RSSHub source migrates to direct arXiv while preserving its toggle',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = LocalStore(prefs);
+      await store.saveSources([
+        const FeedSource(
+          id: 'papers',
+          name: 'Old',
+          url: 'https://rsshub.app/huggingface/daily-papers',
+          category: 'research',
+          enabled: false,
+        ),
+      ]);
+      final paper = store.readSources().firstWhere((s) => s.id == 'papers');
+      expect(paper.url, 'https://export.arxiv.org/rss/cs.AI');
+      expect(paper.enabled, isFalse);
+    },
+  );
   test('Catalog expansion preserves source toggles and custom feeds without duplicates', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();

@@ -7,6 +7,11 @@ import 'package:xml/xml.dart';
 
 import '../models/briefing.dart';
 
+class _FeedFailure implements Exception {
+  const _FeedFailure(this.hint);
+  final String hint;
+}
+
 class FeedResult {
   const FeedResult(this.articles, this.warnings);
   final List<Article> articles;
@@ -59,13 +64,15 @@ class FeedService {
           if (s.fallbackUrl != null) {
             try {
               final items = await _fetch(s, s.fallbackUrl!);
-              warnings.add('${s.name}: arXiv 대체 피드를 사용하고 있어요.');
+              warnings.add('${s.name}: 대체 피드를 사용하고 있어요.');
               return items;
             } catch (_) {
               /* Report the source without exposing remote error bodies. */
             }
           }
-          final hint = error is TimeoutException
+          final hint = error is _FeedFailure
+              ? error.hint
+              : error is TimeoutException
               ? '시간 초과'
               : error is HttpException &&
                     RegExp(r'^HTTP \d{3}$').hasMatch(error.message)
@@ -143,11 +150,10 @@ class FeedService {
       )) {
         bytes.addAll(chunk);
         if (bytes.length > 2 * 1024 * 1024) {
-          throw const FormatException('Feed too large');
+          throw const _FeedFailure('피드 용량이 2MB 제한을 초과했어요');
         }
       }
       final articles = parseFeed(utf8.decode(bytes), source, uri);
-      if (articles.isEmpty) throw const FormatException('No feed entries');
       return articles;
     }
     throw const FormatException('Too many redirects');
@@ -167,6 +173,14 @@ String plainText(String raw) => raw
 
 List<Article> parseFeed(String raw, FeedSource source, [Uri? base]) {
   final doc = XmlDocument.parse(raw);
+  final root = doc.rootElement;
+  final valid =
+      root.name.local == 'feed' ||
+      root.name.local == 'rss' ||
+      (root.name.local == 'RDF' &&
+          root.name.namespaceUri ==
+              'http://www.w3.org/1999/02/22-rdf-syntax-ns#');
+  if (!valid) throw const _FeedFailure('RSS/Atom 대신 다른 문서를 받았어요');
   String field(XmlElement e, List<String> names) {
     for (final name in names) {
       final matches = e.childElements.where((c) => c.name.local == name);
