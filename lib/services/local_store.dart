@@ -56,12 +56,17 @@ class LocalStore {
       // Keep user toggles/custom feeds and append newly shipped built-ins.
       for (var i = 0; i < saved.length; i++) {
         final source = saved[i];
+        final updated = defaultFeedSources
+            .where((s) => s.id == source.id)
+            .firstOrNull;
         if (!source.custom &&
-            source.id == 'papers' &&
-            source.url == 'https://rsshub.app/huggingface/daily-papers') {
-          saved[i] = defaultFeedSources
-              .firstWhere((s) => s.id == 'papers')
-              .withEnabled(source.enabled);
+            updated != null &&
+            (source.url == updated.url ||
+                source.url == updated.fallbackUrl ||
+                (source.id == 'papers' &&
+                    source.url ==
+                        'https://rsshub.app/huggingface/daily-papers'))) {
+          saved[i] = updated.withEnabled(source.enabled);
         }
       }
       final ids = saved.map((s) => s.id).toSet();

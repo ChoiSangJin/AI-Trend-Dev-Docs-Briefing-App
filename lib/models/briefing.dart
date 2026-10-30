@@ -7,10 +7,12 @@ class FeedSource {
     this.fallbackUrl,
     this.enabled = true,
     this.custom = false,
+    this.format = 'rss',
   });
   final String id, name, url, category;
   final String? fallbackUrl;
   final bool enabled, custom;
+  final String format;
   FeedSource withEnabled(bool value) => FeedSource(
     id: id,
     name: name,
@@ -19,6 +21,7 @@ class FeedSource {
     fallbackUrl: fallbackUrl,
     enabled: value,
     custom: custom,
+    format: format,
   );
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -28,6 +31,7 @@ class FeedSource {
     'fallbackUrl': fallbackUrl,
     'enabled': enabled,
     'custom': custom,
+    'format': format,
   };
   factory FeedSource.fromJson(Map<String, dynamic> j) => FeedSource(
     id: j['id'] as String,
@@ -37,6 +41,7 @@ class FeedSource {
     fallbackUrl: j['fallbackUrl'] as String?,
     enabled: j['enabled'] as bool? ?? true,
     custom: j['custom'] as bool? ?? false,
+    format: j['format'] as String? ?? 'rss',
   );
 }
 

@@ -43,7 +43,7 @@ flutter build apk --debug --target-platform android-arm64
 python3 tool/verify_apk.py build/app/outputs/flutter-apk/app-debug.apk
 ```
 
-`tool/feed_smoke.dart`는 실제 GitHub SDK Atom 피드를 읽는 네트워크 확인용입니다. 단위·위젯 테스트는 실제 Gemini API 키 없이 실행됩니다. 실제 Gemini 응답, Keystore, 클립보드, 브라우저 복귀, 권한 거절·허용, 재부팅 후 알림은 Android 기기에서 별도 확인해야 합니다.
+`tool/feed_smoke.dart`는 실제 GitHub SDK 릴리스를 API 또는 Atom 대체 피드로 읽는 네트워크 확인용입니다. 단위·위젯 테스트는 실제 Gemini API 키 없이 실행됩니다. 실제 Gemini 응답, Keystore, 클립보드, 브라우저 복귀, 권한 거절·허용, 재부팅 후 알림은 Android 기기에서 별도 확인해야 합니다.
 
 ## 릴리스 서명 및 배포
 
@@ -92,3 +92,13 @@ RSSHub 공용 서버의 403 접근 제한과, arXiv가 정상 XML이지만 항�
 사용자 화면에서 Ahead of AI가 2MB 제한을 초과하는 것을 확인해 이 기본 소스만 최대 8MB를 허용합니다. 다른 소스와 사용자 피드는 기존 2MB 제한을 유지하고, 기사 발췌문은 계속 3,500자로 제한합니다. 실제 Ahead of AI 응답은 도메인 정책으로 검증하지 못했으므로 전체 크기와 수집 성공 여부는 미확인입니다.
 
 HTTP 429 응답의 Retry-After(초 또는 HTTP 날짜)를 반영합니다. 없거나 해석할 수 없으면 5분을 기다리고, 대기는 1분~24시간으로 제한합니다. 실행 중인 FeedService에서 같은 URL의 수동 새로고침 요청을 대기 시간 동안 억제합니다. 앱 재시작 후 대기 정보는 유지하지 않습니다. 자동 재시도는 하지 않습니다. LlamaIndex 주소와 LangChain 원문은 아직 검증하지 못했습니다.
+
+## 공개 API 소스 (v1.0.8)
+
+기본 소스는 27개입니다. Hacker News 공식 Firebase API(최신 기술 담론), DEV AI 태그 인기글, Hugging Face 공개 텍스트 생성 모델 메타데이터(다운로드순), AI Stack Exchange 질문 메타데이터를 추가합니다. 모델 메타데이터는 새 릴리스·성능 검증이 아니며, 질문 목록도 검증된 답변이 아닙니다. HNRSS AI 소스와 기존 블로그 RSS 설정은 유지합니다.
+
+OpenAI Python SDK·Anthropic Python SDK·Claude Code·LangChain·LlamaIndex 릴리스는 GitHub REST API로 전환하고 기존 Atom을 대체 피드로 유지합니다. arXiv는 검색 API(Atom)로 전환하며 RSS를 대체 주소로 유지합니다. 기존 토글과 사용자 피드는 보존하고 이전 주소·형식은 자동 갱신합니다. 추가 API 키는 필요하지 않으며, 공개 무료 한도는 서비스 정책에 따릅니다. GitHub 비인증 한도 초과는 서버 reset 지침 동안 API 요청을 쉬고 Atom으로 대체합니다.
+
+API 결과는 현재 앱 실행 중 15분간 재사용합니다. Hacker News는 ID 목록 1회와 최대 10개 항목 조회(동시 5개)로 제한하고, Stack Exchange backoff·quota_remaining을 준수합니다. 기존 HTTP 429 대기 처리도 유지합니다. 브리핑·AI 요약은 전체 최대 10개이며 모든 소스가 매번 화면에 나타나는 것은 아닙니다. API 캐시·대기 정보는 재시작 후 유지하지 않습니다.
+
+실연결 확인: GitHub 릴리스·arXiv 검색·Hugging Face 모델 API를 `dart run tool/public_api_smoke.dart`로 확인했습니다. HN 공식 스키마와 DEV Forem 공개 명세도 확인했습니다. HN·DEV·Stack Exchange 실제 응답은 개발환경의 새 도메인 접근 제한으로 확인하지 못했습니다. 이를 성공한 실연결로 간주하지 않습니다. 필요한 도메인은 환경 설정 초안에 저장했습니다. 기존 LlamaIndex Blog·LangChain Blog 등의 RSS 실패는 별도 문제로 남아 있습니다.

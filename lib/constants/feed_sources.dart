@@ -10,19 +10,26 @@ const defaultFeedSources = <FeedSource>[
   FeedSource(
     id: 'openai-sdk',
     name: 'OpenAI Python SDK',
-    url: 'https://github.com/openai/openai-python/releases.atom',
+    url: 'https://api.github.com/repos/openai/openai-python/releases?per_page=10',
+    format: 'github',
+    fallbackUrl: 'https://github.com/openai/openai-python/releases.atom',
     category: '공식 업데이트',
   ),
   FeedSource(
     id: 'anthropic-sdk',
     name: 'Anthropic Python SDK',
-    url: 'https://github.com/anthropics/anthropic-sdk-python/releases.atom',
+    url: 'https://api.github.com/repos/anthropics/anthropic-sdk-python/releases?per_page=10',
+    format: 'github',
+    fallbackUrl:
+        'https://github.com/anthropics/anthropic-sdk-python/releases.atom',
     category: '공식 업데이트',
   ),
   FeedSource(
     id: 'claude-code',
     name: 'Claude Code',
-    url: 'https://github.com/anthropics/claude-code/releases.atom',
+    url: 'https://api.github.com/repos/anthropics/claude-code/releases?per_page=10',
+    format: 'github',
+    fallbackUrl: 'https://github.com/anthropics/claude-code/releases.atom',
     category: '공식 업데이트',
   ),
   FeedSource(
@@ -46,7 +53,9 @@ const defaultFeedSources = <FeedSource>[
   FeedSource(
     id: 'papers',
     name: 'arXiv · cs.AI',
-    url: 'https://export.arxiv.org/rss/cs.AI',
+    url: 'https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending&max_results=10',
+    format: 'arxiv',
+    fallbackUrl: 'https://export.arxiv.org/rss/cs.AI',
     category: '리서치 & 인사이트',
   ),
   FeedSource(
@@ -106,13 +115,17 @@ const defaultFeedSources = <FeedSource>[
   FeedSource(
     id: 'langchain-releases',
     name: 'LangChain Releases',
-    url: 'https://github.com/langchain-ai/langchain/releases.atom',
+    url: 'https://api.github.com/repos/langchain-ai/langchain/releases?per_page=10',
+    format: 'github',
+    fallbackUrl: 'https://github.com/langchain-ai/langchain/releases.atom',
     category: '공식 업데이트',
   ),
   FeedSource(
     id: 'llamaindex-releases',
     name: 'LlamaIndex Releases',
-    url: 'https://github.com/run-llama/llama_index/releases.atom',
+    url: 'https://api.github.com/repos/run-llama/llama_index/releases?per_page=10',
+    format: 'github',
+    fallbackUrl: 'https://github.com/run-llama/llama_index/releases.atom',
     category: '공식 업데이트',
   ),
   FeedSource(
@@ -137,6 +150,34 @@ const defaultFeedSources = <FeedSource>[
     id: 'ahead-ai',
     name: 'Ahead of AI',
     url: 'https://magazine.sebastianraschka.com/feed',
+    category: '리서치 & 인사이트',
+  ),
+  FeedSource(
+    id: 'hn-api',
+    name: 'Hacker News · 기술 담론 (공식 API)',
+    url: 'https://hacker-news.firebaseio.com/v0/newstories.json',
+    format: 'hn',
+    category: '리서치 & 인사이트',
+  ),
+  FeedSource(
+    id: 'dev-api',
+    name: 'DEV Community · AI (인기글)',
+    url: 'https://dev.to/api/articles?tag=ai&per_page=10',
+    format: 'dev',
+    category: '리서치 & 인사이트',
+  ),
+  FeedSource(
+    id: 'hf-models',
+    name: 'Hugging Face · 모델 정보 (다운로드순)',
+    url: 'https://huggingface.co/api/models?pipeline_tag=text-generation&sort=downloads&direction=-1&limit=10',
+    format: 'hf',
+    category: '리서치 & 인사이트',
+  ),
+  FeedSource(
+    id: 'stack-ai',
+    name: 'AI Stack Exchange · 질문',
+    url: 'https://api.stackexchange.com/2.3/questions?site=ai&sort=creation&order=desc&pagesize=10',
+    format: 'stack',
     category: '리서치 & 인사이트',
   ),
 ];
