@@ -52,8 +52,11 @@ bool isSafeWebUrl(String value) {
 }
 
 class FeedService {
-  FeedService(this.client);
+  FeedService(this.client, {DateTime Function()? clock})
+    : clock = clock ?? DateTime.now;
   final http.Client client;
+  final DateTime Function() clock;
+  final Map<String, DateTime> _retryAt = {};
   Future<FeedResult> load(List<FeedSource> sources) async {
     final warnings = <String>[];
     final groups = await Future.wait(
@@ -118,6 +121,15 @@ class FeedService {
 
   Future<List<Article>> _fetch(FeedSource source, String url) async {
     if (!isSafeWebUrl(url)) throw const FormatException('HTTPS feed required');
+    final retryAt = _retryAt[url];
+    if (retryAt != null && retryAt.isAfter(clock())) {
+      final seconds = (retryAt.difference(clock()).inMilliseconds / 1000)
+          .ceil();
+      throw _FeedFailure('HTTP 429 · 서버 요청 제한으로 $seconds초 후 다시 시도할 수 있어요');
+    }
+    // Long-form newsletters can exceed 2MB. Keep a bounded exception for the
+    // built-in source; other sources retain the existing limit.
+    final limitMB = !source.custom && source.id == 'ahead-ai' ? 8 : 2;
     // Validate redirects as well, rather than forwarding to arbitrary schemes/hosts.
     var uri = Uri.parse(url);
     for (var hop = 0; hop < 4; hop++) {
@@ -142,6 +154,21 @@ class FeedService {
       }
       if (response.statusCode != 200) {
         await response.stream.drain<void>();
+        if (response.statusCode == 429) {
+          final value = response.headers['retry-after'] ?? '';
+          final now = clock();
+          var seconds = int.tryParse(value);
+          if (seconds == null) {
+            try {
+              seconds = HttpDate.parse(value).difference(now).inSeconds;
+            } catch (_) {
+              seconds = 300;
+            }
+          }
+          final wait = seconds.clamp(60, 86400);
+          _retryAt[url] = now.add(Duration(seconds: wait));
+          throw _FeedFailure('HTTP 429 · 서버 요청 제한으로 $wait초 후 다시 시도할 수 있어요');
+        }
         throw HttpException('HTTP ${response.statusCode}');
       }
       final bytes = <int>[];
@@ -149,8 +176,8 @@ class FeedService {
         const Duration(seconds: 15),
       )) {
         bytes.addAll(chunk);
-        if (bytes.length > 2 * 1024 * 1024) {
-          throw const _FeedFailure('피드 용량이 2MB 제한을 초과했어요');
+        if (bytes.length > limitMB * 1024 * 1024) {
+          throw _FeedFailure('피드 용량이 ${limitMB}MB 제한을 초과했어요');
         }
       }
       final articles = parseFeed(utf8.decode(bytes), source, uri);

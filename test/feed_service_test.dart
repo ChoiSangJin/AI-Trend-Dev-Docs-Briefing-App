@@ -15,6 +15,60 @@ const rss = '''<rss version="2.0"><channel><item><title>SDK &amp; news</title>
 <pubDate>Wed, 21 Oct 2026 09:00:00 GMT</pubDate></item></channel></rss>''';
 
 void main() {
+  const newsletter = FeedSource(
+    id: 'ahead-ai',
+    name: 'Ahead of AI',
+    url: 'https://example.com/long-feed',
+    category: 'research',
+  );
+  test('Ahead of AI accepts a 3MB RSS and still bounds article excerpts', () async {
+    final body =
+        '<rss><channel><item><title>Long article</title><link>https://example.com/article</link><description><![CDATA[${'A' * (3 * 1024 * 1024)}]]></description></item></channel></rss>';
+    final client = MockClient((_) async => http.Response(body, 200));
+    final result = await FeedService(client).load([newsletter]);
+    expect(result.articles.single.excerpt.length, 3500);
+    expect(result.warnings, isEmpty);
+    client.close();
+  });
+  test('Ahead of AI remains bounded at 8MB', () async {
+    final client = MockClient(
+      (_) async => http.Response('x' * (8 * 1024 * 1024 + 1), 200),
+    );
+    final result = await FeedService(client).load([newsletter]);
+    expect(result.warnings.single, contains('8MB'));
+    client.close();
+  });
+  for (final retry in ['180', 'Fri, 30 Oct 2026 00:03:00 GMT', 'invalid']) {
+    test(
+      '429 honors Retry-After and suppresses repeat refresh requests: $retry',
+      () async {
+        var now = DateTime.utc(2026, 10, 30);
+        var requests = 0;
+        final client = MockClient((_) async {
+          requests++;
+          return requests == 1
+              ? http.Response('', 429, headers: {'retry-after': retry})
+              : http.Response(rss, 200);
+        });
+        final service = FeedService(client, clock: () => now);
+        expect(
+          (await service.load([source])).warnings.single,
+          contains('HTTP 429'),
+        );
+        now = now.add(const Duration(seconds: 30));
+        expect(
+          (await service.load([source])).warnings.single,
+          contains('HTTP 429'),
+        );
+        expect(requests, 1);
+        now = now.add(const Duration(seconds: 301));
+        expect((await service.load([source])).articles, hasLength(1));
+        expect(requests, 2);
+        client.close();
+      },
+    );
+  }
+
   test('An empty valid RSS is successful and does not trigger fallback', () async {
     var calls = 0;
     final client = MockClient((_) async {
