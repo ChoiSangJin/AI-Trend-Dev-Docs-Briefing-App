@@ -74,3 +74,11 @@ AI 요약은 부정확할 수 있습니다. Google 무료 서비스의 입력 �
 기본 소스에는 기업 공식 피드, 개인 블로그, 매체, 커뮤니티 피드가 함께 포함됩니다. RSSHub는 제3자 서비스이며 Daily Papers 수집 실패 시 arXiv `cs.AI`로 대체합니다. 피드의 무차단·무제한 접근을 보장하지 않습니다. 설정에서 끄거나 대체 피드를 추가할 수 있습니다.
 
 정확한 알림에는 사용자가 허용하는 `SCHEDULE_EXACT_ALARM`을 사용합니다. 알람 시계·달력 앱을 위한 자동 허용 권한인 `USE_EXACT_ALARM`은 사용하지 않습니다.
+
+## 추가 소스 (v1.0.5)
+
+기존 10개에 HNRSS AI(50점 이상), Lobsters AI, The Decoder, VentureBeat AI, MIT Technology Review 전체 피드, LangChain·LlamaIndex 블로그 및 GitHub 릴리스, Google DeepMind, Microsoft AI, Interconnects, Ahead of AI를 추가해 기본 23개를 제공합니다. MIT 피드는 AI 전용이 아닙니다. HNRSS 점수 조건은 주간·월간 조회수 순위가 아닙니다.
+
+기존 소스의 켜기/끄기와 사용자 피드를 보존하면서 새 기본 소스를 추가합니다. 수집에 실패한 출처는 다른 소스 수집을 막지 않고 경고를 표시합니다. 전체 브리핑과 AI 요약 한도는 여전히 최대 10개이며, 10개보다 많은 출처가 켜져 있으면 최신 기사가 있는 출처를 우선하므로 모든 출처가 매번 표시되지는 않습니다.
+
+GitHub Trending은 공식 REST Trending 엔드포인트가 없고, The Neuron은 확정된 RSS 주소가 없어 포함하지 않았습니다. Reddit·X 직접 수집도 추가하지 않았습니다. 새 외부 RSS 주소는 클라우드 도메인 접근 제한 때문에 실제 응답을 확인하지 못했으며, 주소 변경·차단·구독 제한에 따라 실패할 수 있습니다. LangChain·LlamaIndex GitHub 릴리스 피드는 실제 XML 응답으로 검증합니다.

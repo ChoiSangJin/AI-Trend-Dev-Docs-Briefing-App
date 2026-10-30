@@ -1,9 +1,36 @@
 import 'package:ai_briefing/models/briefing.dart';
+import 'package:ai_briefing/constants/feed_sources.dart';
 import 'package:ai_briefing/services/local_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('Catalog expansion preserves source toggles and custom feeds without duplicates', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final store = LocalStore(prefs);
+    const custom = FeedSource(
+      id: 'custom:test',
+      name: 'Mine',
+      url: 'https://example.com/feed',
+      category: '내 피드',
+      custom: true,
+    );
+    await store.saveSources([
+      defaultFeedSources.first.withEnabled(false),
+      custom,
+    ]);
+    final expanded = store.readSources();
+    expect(expanded.first.enabled, isFalse);
+    expect(expanded.any((s) => s.id == custom.id && s.custom), isTrue);
+    expect(expanded.any((s) => s.id == 'hn-ai'), isTrue);
+    expect(expanded.length, defaultFeedSources.length + 1);
+    await store.saveSources(expanded);
+    expect(
+      store.readSources().map((s) => s.id).toSet().length,
+      expanded.length,
+    );
+  });
   TestWidgetsFlutterBinding.ensureInitialized();
   test(
     'Streak counts one visit per civil day, crosses months, and resets on gaps',
@@ -46,9 +73,9 @@ void main() {
     final store = LocalStore(await SharedPreferences.getInstance());
     expect(store.readCache(), isEmpty);
     final sources = store.readSources();
-    expect(sources, hasLength(10));
+    expect(sources, hasLength(defaultFeedSources.length));
     await store.saveSources([sources.first.withEnabled(false)]);
-    expect(store.readSources().single.enabled, isFalse);
+    expect(store.readSources().first.enabled, isFalse);
   });
   test('Cache remains bounded to the latest 500 summaries', () async {
     SharedPreferences.setMockInitialValues({});
