@@ -37,6 +37,32 @@ Map<String, dynamic> question() => {
 };
 
 void main() {
+  test(
+    'HN item rate limits pause the source index as well as the item',
+    () async {
+      var indexes = 0, items = 0;
+      final client = MockClient((r) async {
+        if (r.url.path.endsWith('newstories.json')) {
+          indexes++;
+          return jsonResponse([1]);
+        }
+        items++;
+        return http.Response('', 429, headers: {'retry-after': '180'});
+      });
+      final service = FeedService(client);
+      expect(
+        (await service.load([source('hn-api')])).warnings.single,
+        contains('HTTP 429'),
+      );
+      expect(
+        (await service.load([source('hn-api')])).warnings.single,
+        contains('HTTP 429'),
+      );
+      expect(indexes, 1);
+      expect(items, 1);
+      client.close();
+    },
+  );
   TestWidgetsFlutterBinding.ensureInitialized();
   test('GitHub releases skip drafts, previews and unsafe links, retain stable identity', () async {
     final client = MockClient((r) async {

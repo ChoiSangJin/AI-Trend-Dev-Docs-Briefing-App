@@ -221,6 +221,7 @@ class FeedService {
           }
           final wait = seconds.clamp(60, 86400);
           _retryAt[url] = now.add(Duration(seconds: wait));
+          if (json) _retryAt[source.url] = _retryAt[url]!;
           throw _FeedFailure('HTTP 429 · 서버 요청 제한으로 $wait초 후 다시 시도할 수 있어요');
         }
         throw HttpException('HTTP ${response.statusCode}');
