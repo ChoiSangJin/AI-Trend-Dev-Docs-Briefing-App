@@ -15,6 +15,31 @@ const rss = '''<rss version="2.0"><channel><item><title>SDK &amp; news</title>
 <pubDate>Wed, 21 Oct 2026 09:00:00 GMT</pubDate></item></channel></rss>''';
 
 void main() {
+  test('VentureBeat alone reuses successful RSS for five minutes', () async {
+    var now = DateTime.utc(2026, 11, 3), calls = 0;
+    final client = MockClient((_) async {
+      calls++;
+      return http.Response(rss, 200);
+    });
+    final service = FeedService(client, clock: () => now);
+    const vb = FeedSource(
+      id: 'venturebeat-ai',
+      name: 'VentureBeat',
+      url: 'https://venturebeat.com/feed',
+      category: 'test',
+    );
+    await service.load([vb]);
+    now = now.add(const Duration(minutes: 4));
+    await service.load([vb]);
+    expect(calls, 1);
+    now = now.add(const Duration(minutes: 2));
+    await service.load([vb]);
+    expect(calls, 2);
+    await service.load([source]);
+    await service.load([source]);
+    expect(calls, 4);
+    client.close();
+  });
   const newsletter = FeedSource(
     id: 'ahead-ai',
     name: 'Ahead of AI',

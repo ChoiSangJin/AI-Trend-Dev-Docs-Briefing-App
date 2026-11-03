@@ -22,36 +22,47 @@ class LocalStore {
   Map<String, Briefing> readCache() {
     try {
       final raw = jsonDecode(prefs.getString('briefings') ?? '[]') as List;
-      return {
+      final cache = {
         for (final j in raw)
           (j['id'] as String): Briefing.fromJson(
             Map<String, dynamic>.from(j as Map),
           ),
       };
+      if (prefs.getInt('hn_summary_provenance') != 1) {
+        cache.removeWhere(
+          (id, _) => id.startsWith('https://news.ycombinator.com/item?id='),
+        );
+      }
+      return cache;
     } catch (_) {
       return {};
     }
   }
 
-  Future<void> saveCache(Map<String, Briefing> cache) => prefs.setString(
-    'briefings',
-    jsonEncode(
-      cache.values
-          .toList()
-          .reversed
-          .take(500)
-          .toList()
-          .reversed
-          .map((b) => b.toJson())
-          .toList(),
-    ),
-  );
+  Future<void> saveCache(Map<String, Briefing> cache) async {
+    await prefs.setString(
+      'briefings',
+      jsonEncode(
+        cache.values
+            .toList()
+            .reversed
+            .take(500)
+            .toList()
+            .reversed
+            .map((b) => b.toJson())
+            .toList(),
+      ),
+    );
+    await prefs.setInt('hn_summary_provenance', 1);
+  }
+
   List<FeedSource> readSources() {
     try {
       final raw = prefs.getString('sources');
       if (raw == null) return List.of(defaultFeedSources);
       final saved = (jsonDecode(raw) as List)
           .map((j) => FeedSource.fromJson(Map<String, dynamic>.from(j as Map)))
+          .where((s) => s.custom || retiredBlogFeeds[s.id] != s.url)
           .toList();
       // Keep user toggles/custom feeds and append newly shipped built-ins.
       for (var i = 0; i < saved.length; i++) {

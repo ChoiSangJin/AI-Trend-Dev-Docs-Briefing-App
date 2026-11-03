@@ -58,6 +58,32 @@ http.Response modelResponse(List<String> names) => http.Response(
 );
 
 void main() {
+  test('Source registration timestamp is passed to AI without claiming original publication date', () async {
+    SharedPreferences.setMockInitialValues({'gemini_summary_model_policy': 2});
+    final prefs = await SharedPreferences.getInstance();
+    final client = MockClient((r) async {
+      final body = jsonDecode(r.body);
+      final input =
+          jsonDecode(body['contents'][0]['parts'][0]['text'] as String) as List;
+      expect(input.single['source_published_at'], '2026-11-03T00:00:00.000Z');
+      expect(
+        body['systemInstruction']['parts'][0]['text'],
+        contains('원문 최초 발행일을 뜻하지 않는다'),
+      );
+      return response([summary('dated')]);
+    });
+    await GeminiService(client, prefs).summarize(key, [
+      Article(
+        id: 'dated',
+        title: 'News',
+        link: 'https://example.com/dated',
+        excerpt: 'Metadata',
+        source: feed,
+        published: DateTime.utc(2026, 11, 3),
+      ),
+    ]);
+    client.close();
+  });
   TestWidgetsFlutterBinding.ensureInitialized();
   late SharedPreferences prefs;
   late DateTime now;

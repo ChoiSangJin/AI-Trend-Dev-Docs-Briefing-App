@@ -6,6 +6,71 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   test(
+    'Retired built-in blog URLs disappear while overrides and toggles survive',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = LocalStore(prefs);
+      await store.saveSources([
+        const FeedSource(
+          id: 'langchain-blog',
+          name: 'Old',
+          url: 'https://blog.langchain.dev/rss/',
+          category: 'test',
+        ),
+        const FeedSource(
+          id: 'llamaindex-blog',
+          name: 'Override',
+          url: 'https://example.com/own-feed',
+          category: 'test',
+          enabled: false,
+        ),
+        const FeedSource(
+          id: 'custom:blog',
+          name: 'Mine',
+          url: 'https://blog.langchain.dev/rss/',
+          category: 'test',
+          custom: true,
+        ),
+        defaultFeedSources.first.withEnabled(false),
+      ]);
+      final sources = store.readSources();
+      expect(sources.any((s) => s.id == 'langchain-blog'), isFalse);
+      expect(
+        sources.firstWhere((s) => s.id == 'llamaindex-blog').url,
+        'https://example.com/own-feed',
+      );
+      expect(sources.any((s) => s.id == 'custom:blog'), isTrue);
+      expect(
+        sources.firstWhere((s) => s.id == defaultFeedSources.first.id).enabled,
+        isFalse,
+      );
+      expect(sources.any((s) => s.id == 'google-genai-sdk'), isTrue);
+    },
+  );
+  test(
+    'Only legacy HN summaries are invalidated once; read history is preserved',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = LocalStore(prefs);
+      const hn = 'https://news.ycombinator.com/item?id=1';
+      Briefing brief(String id) => Briefing(
+        id: id,
+        title: 'Title',
+        lines: ['1', '2', '3'],
+        term: 'Term',
+      );
+      await store.saveCache({hn: brief(hn), 'other': brief('other')});
+      await store.markRead(hn);
+      await prefs.remove('hn_summary_provenance');
+      expect(store.readCache().keys, ['other']);
+      expect(store.readIds(), contains(hn));
+      await store.saveCache({hn: brief(hn), 'other': brief('other')});
+      expect(store.readCache().keys, containsAll([hn, 'other']));
+    },
+  );
+  test(
     'Old RSSHub source migrates to direct arXiv while preserving its toggle',
     () async {
       SharedPreferences.setMockInitialValues({});

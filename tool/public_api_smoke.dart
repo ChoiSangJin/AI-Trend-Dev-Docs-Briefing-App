@@ -7,7 +7,15 @@ import 'package:http/io_client.dart';
 Future<void> main() async {
   final io = HttpClient()..findProxy = HttpClient.findProxyFromEnvironment;
   final client = IOClient(io);
-  const ids = {'langchain-releases', 'papers', 'hf-models'};
+  const ids = {
+    'langchain-releases',
+    'papers',
+    'hf-models',
+    'google-genai-sdk',
+    'ollama-releases',
+    'vllm-releases',
+    'transformers-releases',
+  };
   try {
     final result = await FeedService(client)
         .load(defaultFeedSources.where((s) => ids.contains(s.id)).toList());
@@ -20,7 +28,7 @@ Future<void> main() async {
       return;
     }
     stdout.writeln(
-      'Verified GitHub releases, arXiv API and Hugging Face models: ${result.articles.length} selected entries.',
+      'Verified official API sources (${ids.length}): ${result.articles.length} selected entries.',
     );
   } finally {
     client.close();

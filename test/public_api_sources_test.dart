@@ -38,6 +38,36 @@ Map<String, dynamic> question() => {
 
 void main() {
   test(
+    'HN new stories reject stale, future and missing platform timestamps',
+    () async {
+      final now = DateTime.utc(2026, 11, 3);
+      final client = MockClient((r) async {
+        if (r.url.path.endsWith('newstories.json')) {
+          return jsonResponse([1, 2, 3, 4]);
+        }
+        final id = int.parse(r.url.path.split('/').last.split('.').first);
+        final date = id == 1
+            ? DateTime.utc(2012)
+            : id == 2
+            ? now.add(const Duration(days: 2))
+            : now;
+        return jsonResponse({
+          'id': id,
+          'type': 'story',
+          'title': 'Story $id',
+          if (id != 4) 'time': date.millisecondsSinceEpoch ~/ 1000,
+        });
+      });
+      final result = await FeedService(
+        client,
+        clock: () => now,
+      ).load([source('hn-api')]);
+      expect(result.articles.single.title, 'Story 3');
+      expect(result.articles.single.published, now);
+      client.close();
+    },
+  );
+  test(
     'HN item rate limits pause the source index as well as the item',
     () async {
       var indexes = 0, items = 0;
@@ -69,9 +99,19 @@ void main() {
       expect(r.headers.containsKey('authorization'), isFalse);
       return jsonResponse([
         release(),
-        release(draft: true),
-        release(prerelease: true),
+        release(
+          draft: true,
+          url: 'https://github.com/org/repo/releases/tag/draft',
+        ),
+        release(
+          prerelease: true,
+          url: 'https://github.com/org/repo/releases/tag/preview',
+        ),
         release(url: 'javascript:bad'),
+        {
+          ...release(url: 'https://github.com/org/repo/releases/tag/rc'),
+          'tag_name': 'v1.0.0rc1',
+        },
       ]);
     });
     final result = await FeedService(client)
@@ -162,7 +202,10 @@ void main() {
           'descendants': 2,
         });
       });
-      final result = await FeedService(client).load([source('hn-api')]);
+      final result = await FeedService(
+        client,
+        clock: () => DateTime.utc(2026, 10, 30),
+      ).load([source('hn-api')]);
       expect(calls, 11);
       expect(maximum, lessThanOrEqualTo(5));
       expect(result.articles, hasLength(8));
