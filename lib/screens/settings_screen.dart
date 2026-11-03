@@ -194,7 +194,7 @@ class SettingsScreen extends ConsumerWidget {
           ],
         ),
         const Text(
-          '소스를 변경한 뒤 오늘의 브리핑에서 새로고침해 주세요. 공개 API 소스는 호출 한도를 위해 최대 15분 간격으로 갱신해요.',
+          '소스를 변경한 뒤 오늘의 브리핑에서 새로고침해 주세요. 공개 API는 최대 15분, VentureBeat는 최대 5분간 결과를 재사용해요.',
           style: TextStyle(fontSize: 12, height: 1.6, color: Color(0xFF60716D)),
         ),
         const SizedBox(height: 12),
@@ -342,7 +342,7 @@ class SettingsScreen extends ConsumerWidget {
         ),
         const Center(
           child: Text(
-            'AI 모닝 브리핑 · 1.0.8',
+            'AI 모닝 브리핑 · 1.0.9',
             style: TextStyle(fontSize: 11, color: Color(0xFF60716D)),
           ),
         ),

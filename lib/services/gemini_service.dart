@@ -369,6 +369,7 @@ class GeminiService {
             'title': compact(a.title, 180),
             'feed_excerpt': compact(a.excerpt, 1200),
             'source': a.source.name,
+            'source_published_at': a.published?.toUtc().toIso8601String(),
           },
         )
         .toList();
@@ -382,6 +383,8 @@ class GeminiService {
                 '각 입력 id를 그대로 한 번씩 반환하고, 직관적인 ko_title, 핵심 내용 summary_lines 문자열 정확히 3개, '
                 '핵심 기술 용어 1개의 초보자용 한 줄 해설 term_explanation을 작성하라. '
                 'ko_title은 40자 이내, summary_lines의 각 줄은 60자 이내, term_explanation은 80자 이내로 간결하게 작성하라. '
+                'source_published_at은 수집 플랫폼에 등록된 시각이며 원문 최초 발행일을 뜻하지 않는다. '
+                '입력에 없는 연도·발행일·사실을 추측하지 말고, 제목과 메타데이터만 있으면 그 한계를 명시하라. '
                 '제공된 발췌문만 근거로 하며, 부족한 정보는 부족하다고 명시하고 사실을 추측하지 마라.',
           },
         ],

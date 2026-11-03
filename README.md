@@ -102,3 +102,13 @@ OpenAI Python SDK·Anthropic Python SDK·Claude Code·LangChain·LlamaIndex 릴�
 API 결과는 현재 앱 실행 중 15분간 재사용합니다. Hacker News는 ID 목록 1회와 최대 10개 항목 조회(동시 5개)로 제한하고, Stack Exchange backoff·quota_remaining을 준수합니다. 기존 HTTP 429 대기 처리도 유지합니다. 브리핑·AI 요약은 전체 최대 10개이며 모든 소스가 매번 화면에 나타나는 것은 아닙니다. API 캐시·대기 정보는 재시작 후 유지하지 않습니다.
 
 실연결 확인: GitHub 릴리스·arXiv 검색·Hugging Face 모델 API를 `dart run tool/public_api_smoke.dart`로 확인했습니다. HN 공식 스키마와 DEV Forem 공개 명세도 확인했습니다. HN·DEV·Stack Exchange 실제 응답은 개발환경의 새 도메인 접근 제한으로 확인하지 못했습니다. 이를 성공한 실연결로 간주하지 않습니다. 필요한 도메인은 환경 설정 초안에 저장했습니다. 기존 LlamaIndex Blog·LangChain Blog 등의 RSS 실패는 별도 문제로 남아 있습니다.
+
+## 검증된 공식 소스 정리 (v1.0.9)
+
+기본 목록은 29개입니다. 무료 공개 GitHub 릴리스 API로 Google Gen AI SDK, Ollama, vLLM, Hugging Face Transformers를 추가했으며 실제 수집 코드로 네 곳 모두의 항목을 확인했습니다. GitHub의 draft/prerelease 표시 외에 rc·alpha·beta·preview·dev 태그도 제외합니다. 호출 한도와 Atom 대체 처리는 유지합니다.
+
+실패가 확인된 기본 LlamaIndex Blog·LangChain Blog RSS 주소는 목록과 기존 저장 설정에서 제외합니다. 두 프로젝트의 공식 릴리스 API는 계속 제공합니다. 블로그 본문 수집이 복구된 것은 아닙니다. 사용자 추가 피드와 별도로 변경한 URL, 다른 소스의 토글은 보존합니다.
+
+VentureBeat는 정상 XML 응답을 확인했으며 성공한 결과를 앱 실행 중 5분간 재사용해 과도한 재요청을 줄입니다. 서버의 429 제한 자체를 해제하는 것은 아닙니다. 다른 RSS의 수동 갱신 방식과 API 15분 캐시는 유지합니다.
+
+HN 최신 항목은 플랫폼 등록 시각이 없거나 30일보다 오래됐거나 하루 이상 미래인 경우 제외합니다. AI 입력에는 플랫폼 등록 시각을 보내고 원문 최초 발행일로 추측하지 않도록 지시합니다. 이 정보가 없던 기존 HN 요약만 한 번 무효화해 다시 생성하며 다른 요약과 읽기 기록은 유지합니다. AI 결과의 사실 정확성을 보장하는 검증기는 아닙니다.

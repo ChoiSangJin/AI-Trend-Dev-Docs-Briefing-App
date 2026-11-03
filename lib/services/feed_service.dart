@@ -57,7 +57,7 @@ class FeedService {
   final http.Client client;
   final DateTime Function() clock;
   final Map<String, DateTime> _retryAt = {};
-  final Map<String, ({DateTime fetched, List<Article> articles})> _apiCache =
+  final Map<String, ({DateTime fetched, List<Article> articles})> _sourceCache =
       {};
   final Map<String, DateTime> _apiPause = {};
   Future<FeedResult> load(List<FeedSource> sources) async {
@@ -123,6 +123,15 @@ class FeedService {
   }
 
   Future<List<Article>> _fetch(FeedSource source, String url) async {
+    final cacheNews =
+        !source.custom && source.id == 'venturebeat-ai' && url == source.url;
+    if (cacheNews) {
+      final cached = _sourceCache[url];
+      if (cached != null &&
+          clock().difference(cached.fetched) < const Duration(minutes: 5)) {
+        return cached.articles;
+      }
+    }
     if (!source.custom &&
         url == source.url &&
         const [
@@ -133,7 +142,7 @@ class FeedService {
           'stack',
           'arxiv',
         ].contains(source.format)) {
-      final cached = _apiCache[source.url];
+      final cached = _sourceCache[source.url];
       if (cached != null &&
           clock().difference(cached.fetched) < const Duration(minutes: 15)) {
         return cached.articles;
@@ -143,11 +152,17 @@ class FeedService {
         throw const _FeedFailure('API 서버 대기 지침·할당량에 따라 잠시 요청을 쉬고 있어요');
       }
       final result = await _loadApi(source);
-      _apiCache[source.url] = (fetched: clock(), articles: result);
+      _sourceCache[source.url] = (fetched: clock(), articles: result);
       return result;
     }
     final response = await _fetchBytes(source, url);
-    return parseFeed(utf8.decode(response.bytes), source, response.uri);
+    final articles = parseFeed(
+      utf8.decode(response.bytes),
+      source,
+      response.uri,
+    );
+    if (cacheNews) _sourceCache[url] = (fetched: clock(), articles: articles);
+    return articles;
   }
 
   Future<({List<int> bytes, Uri uri})> _fetchBytes(
@@ -309,7 +324,14 @@ class FeedService {
       DateTime? published;
       switch (source.format) {
         case 'github':
-          if (row['draft'] == true || row['prerelease'] == true) continue;
+          if (row['draft'] == true ||
+              row['prerelease'] == true ||
+              RegExp(
+                r'(?:[-.]|\d)(?:rc|alpha|beta|preview|dev)[.-]?\d*',
+                caseSensitive: false,
+              ).hasMatch(str(row['tag_name']))) {
+            continue;
+          }
           title = str(row['name']).trim().isEmpty
               ? str(row['tag_name'])
               : str(row['name']);
@@ -328,6 +350,11 @@ class FeedService {
           excerpt =
               'HN 항목 메타데이터 · ${row['score'] is num ? row['score'] : 0} 추천점 · ${row['descendants'] is num ? row['descendants'] : 0} 댓글. ${str(row['text'])}';
           published = timestamp(row['time']);
+          if (published == null ||
+              published.isBefore(clock().subtract(const Duration(days: 30))) ||
+              published.isAfter(clock().add(const Duration(days: 1)))) {
+            continue;
+          }
         case 'dev':
           title = str(row['title']);
           link = str(row['url']);

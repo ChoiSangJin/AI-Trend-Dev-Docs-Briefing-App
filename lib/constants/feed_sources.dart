@@ -101,18 +101,6 @@ const defaultFeedSources = <FeedSource>[
     category: '리서치 & 인사이트',
   ),
   FeedSource(
-    id: 'langchain-blog',
-    name: 'LangChain Blog',
-    url: 'https://blog.langchain.dev/rss/',
-    category: '공식 업데이트',
-  ),
-  FeedSource(
-    id: 'llamaindex-blog',
-    name: 'LlamaIndex Blog',
-    url: 'https://www.llamaindex.ai/blog/rss.xml',
-    category: '공식 업데이트',
-  ),
-  FeedSource(
     id: 'langchain-releases',
     name: 'LangChain Releases',
     url: 'https://api.github.com/repos/langchain-ai/langchain/releases?per_page=10',
@@ -180,4 +168,43 @@ const defaultFeedSources = <FeedSource>[
     format: 'stack',
     category: '리서치 & 인사이트',
   ),
+  FeedSource(
+    id: 'google-genai-sdk',
+    name: 'Google Gen AI SDK',
+    url: 'https://api.github.com/repos/googleapis/python-genai/releases?per_page=5',
+    fallbackUrl: 'https://github.com/googleapis/python-genai/releases.atom',
+    format: 'github',
+    category: '공식 업데이트',
+  ),
+  FeedSource(
+    id: 'ollama-releases',
+    name: 'Ollama Releases',
+    url: 'https://api.github.com/repos/ollama/ollama/releases?per_page=5',
+    fallbackUrl: 'https://github.com/ollama/ollama/releases.atom',
+    format: 'github',
+    category: '공식 업데이트',
+  ),
+  FeedSource(
+    id: 'vllm-releases',
+    name: 'vLLM Releases',
+    url: 'https://api.github.com/repos/vllm-project/vllm/releases?per_page=5',
+    fallbackUrl: 'https://github.com/vllm-project/vllm/releases.atom',
+    format: 'github',
+    category: '공식 업데이트',
+  ),
+  FeedSource(
+    id: 'transformers-releases',
+    name: 'Hugging Face Transformers',
+    url: 'https://api.github.com/repos/huggingface/transformers/releases?per_page=5',
+    fallbackUrl: 'https://github.com/huggingface/transformers/releases.atom',
+    format: 'github',
+    category: '공식 업데이트',
+  ),
 ];
+
+// Retire only the exact built-in addresses that failed; user-added feeds and
+// intentionally different URLs must be preserved. Official release sources remain.
+const retiredBlogFeeds = {
+  'langchain-blog': 'https://blog.langchain.dev/rss/',
+  'llamaindex-blog': 'https://www.llamaindex.ai/blog/rss.xml',
+};
