@@ -156,9 +156,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      app.loading
-                          ? '새 소식을 모으고 있어요…'
-                          : 'Google AI가 소식을 정리하고 있어요. 최대 2분 정도 걸릴 수 있어요…',
+                      app.loading ? '새 소식을 모으고 있어요…' : 'Google AI가 소식을 정리하고 있어요. 서버 오류 시 다른 모델로 한 번 더 시도해요…',
                       style: const TextStyle(fontSize: 12),
                     ),
                   ),
