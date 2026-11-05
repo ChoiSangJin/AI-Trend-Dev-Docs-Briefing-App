@@ -75,6 +75,116 @@ void main() {
     prefs = await SharedPreferences.getInstance();
     now = DateTime.utc(2026, 10, 23);
   });
+  for (final firstCode in [503, 404]) {
+    test(
+      'Mixed unavailable failures stop after two posts: $firstCode',
+      () async {
+        var posts = 0;
+        final client = MockClient((r) async {
+          if (r.method == 'GET') {
+            return models(['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']);
+          }
+          posts++;
+          return errorResponse(posts == 1 ? firstCode : 503);
+        });
+        await expectLater(
+          GeminiService(
+            client,
+            prefs,
+            pause: (_) async {},
+          ).summarize(key, [article]),
+          throwsA(
+            isA<BriefingException>().having(
+              (e) => e.message,
+              'model diagnostic',
+              allOf(
+                contains('gemini-3.1-flash-lite'),
+                contains('HTTP 503'),
+                isNot(contains(key)),
+              ),
+            ),
+          ),
+        );
+        expect(posts, 2);
+        client.close();
+      },
+    );
+  }
+  test('503 switches models once after waiting without blacklisting a temporary failure', () async {
+    var posts = 0;
+    final waits = <Duration>[];
+    final client = MockClient((r) async {
+      if (r.method == 'GET') {
+        return models(['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']);
+      }
+      posts++;
+      return posts == 1 ? errorResponse(503) : generated();
+    });
+    final service = GeminiService(
+      client,
+      prefs,
+      pause: (d) async {
+        waits.add(d);
+      },
+    );
+    expect(await service.summarize(key, [article]), hasLength(1));
+    expect(waits, [const Duration(seconds: 5)]);
+    expect(posts, 2);
+    expect(prefs.getString('gemini_model'), 'gemini-3.1-flash-lite');
+    expect(prefs.containsKey('gemini_rejected_models'), isFalse);
+    client.close();
+  });
+  for (final retry in ['120', 'Fri, 23 Oct 2026 00:02:00 GMT']) {
+    test(
+      'Long 503 Retry-After defers manual retry across restart: $retry',
+      () async {
+        var posts = 0;
+        final client = MockClient((_) async {
+          posts++;
+          return http.Response('{}', 503, headers: {'retry-after': retry});
+        });
+        final service = GeminiService(
+          client,
+          prefs,
+          clock: () => now,
+          pause: (_) async => fail('Must not wait automatically'),
+        );
+        await expectLater(
+          service.summarize(key, [article]),
+          throwsA(isA<BriefingException>()),
+        );
+        now = now.add(const Duration(seconds: 90));
+        await expectLater(
+          GeminiService(
+            client,
+            prefs,
+            clock: () => now,
+          ).summarize(key, [article]),
+          throwsA(isA<BriefingException>()),
+        );
+        expect(posts, 1);
+        client.close();
+      },
+    );
+  }
+  test('A lone 503 model is not retried with the same name', () async {
+    var posts = 0;
+    final client = MockClient((r) async {
+      if (r.method == 'GET') return models(['gemini-3.5-flash-lite']);
+      posts++;
+      return errorResponse(503);
+    });
+    await expectLater(
+      GeminiService(
+        client,
+        prefs,
+        pause: (_) async {},
+      ).summarize(key, [article]),
+      throwsA(isA<BriefingException>()),
+    );
+    expect(posts, 1);
+    client.close();
+  });
   test('Current stable Lite models win over legacy models, aliases and heavier models', () async {
     final client = MockClient(
       (_) async => models([
@@ -293,7 +403,7 @@ void main() {
       client.close();
     },
   );
-  for (final code in [400, 401, 403, 429, 500, 503]) {
+  for (final code in [400, 401, 403, 429, 500]) {
     test(
       'HTTP $code never triggers model discovery or a replacement post',
       () async {

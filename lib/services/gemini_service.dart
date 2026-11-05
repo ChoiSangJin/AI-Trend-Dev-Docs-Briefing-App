@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,12 +19,15 @@ class GeminiService {
     this.client,
     this.prefs, {
     DateTime Function()? clock,
+    Future<void> Function(Duration)? pause,
     this.requestTimeout = const Duration(seconds: 120),
-  }) : clock = clock ?? DateTime.now;
+  }) : clock = clock ?? DateTime.now,
+       pause = pause ?? Future<void>.delayed;
   final http.Client client;
   final SharedPreferences prefs;
   final DateTime Function() clock;
   final Duration requestTimeout;
+  final Future<void> Function(Duration) pause;
   bool _busy = false;
   static const host = 'generativelanguage.googleapis.com';
   static const modelPolicyVersion = 2;
@@ -143,7 +147,8 @@ class GeminiService {
           ? 'Google에서 AI 모델(${requestedModel ?? model})의 생성 요청을 처리하지 못했어요. 키를 다시 발급하기 전에 Google AI Studio 프로젝트의 모델 제공 여부를 확인해 주세요.'
           : 'Google 모델 목록 조회 주소를 찾지 못했어요. 앱 업데이트를 확인해 주세요.';
     } else if (response.statusCode >= 500) {
-      message = 'Google AI 서버에서 오류가 발생했어요. 잠시 후 다시 시도해 주세요.';
+      message =
+          'Google AI 서버에서 오류가 발생했어요. 잠시 후 다시 시도해 주세요.${generation ? ' 요청 모델: ${requestedModel ?? model}.' : ''}';
     } else if (response.statusCode == 400) {
       message = 'Google이 요청 설정을 거절했어요. API 키 오류로 단정할 수 없으니 아래 오류 코드를 확인해 주세요.';
     } else {
@@ -203,16 +208,50 @@ class GeminiService {
           _rejectedModels.contains(model)) {
         await _discoverModel(key, excludedModels: _rejectedModels);
       }
-      // A 404 did not generate a summary. Permit only one replacement attempt
-      // within this guarded operation; all other failures stop immediately.
+      final attempted = <String>{};
+      // At most two generation requests, including mixed 404/503 failures.
       for (var attempt = 0; attempt < 2; attempt++) {
         final selectedModel = model;
+        attempted.add(selectedModel);
         await prefs.setInt(
           'gemini_next_request',
           clock().millisecondsSinceEpoch + 65000,
         );
         final response = await _sendGeneration(key, selectedModel, body);
         receivedStatus = response.statusCode;
+        if (response.statusCode == 503) {
+          final header = response.headers['retry-after'];
+          var seconds = int.tryParse(header ?? '');
+          if (seconds == null && header != null) {
+            try {
+              seconds = HttpDate.parse(header).difference(clock()).inSeconds;
+            } catch (_) {
+              /* Use the conservative default below. */
+            }
+          }
+          final delay = Duration(seconds: (seconds ?? 5).clamp(1, 86400));
+          final retryAt = clock().add(delay).millisecondsSinceEpoch;
+          if (retryAt > (prefs.getInt('gemini_next_request') ?? 0)) {
+            await prefs.setInt('gemini_next_request', retryAt);
+          }
+          if (attempt == 0 && delay <= const Duration(seconds: 30)) {
+            await pause(delay);
+            try {
+              await _discoverModel(
+                key,
+                excludedModels: {..._rejectedModels, ...attempted},
+              );
+            } on BriefingException catch (error) {
+              await _requireSuccess(
+                response,
+                generation: true,
+                requestedModel: selectedModel,
+                recoveryDetail: error.message,
+              );
+            }
+            continue;
+          }
+        }
         if (response.statusCode == 404) {
           final rejected = _rejectedModels..add(selectedModel);
           await prefs.setStringList(
@@ -221,7 +260,10 @@ class GeminiService {
           );
           if (attempt == 0) {
             try {
-              await _discoverModel(key, excludedModels: rejected);
+              await _discoverModel(
+                key,
+                excludedModels: {...rejected, ...attempted},
+              );
             } on BriefingException catch (error) {
               await _requireSuccess(
                 response,
