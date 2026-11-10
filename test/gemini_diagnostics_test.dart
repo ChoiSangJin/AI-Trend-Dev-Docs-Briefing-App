@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const testKey = 'different-prefix-test-key';
 const article = Article(
+  canSummarize: true,
   id: 'one',
   title: 'News',
   link: 'https://example.com/one',

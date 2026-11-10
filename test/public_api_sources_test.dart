@@ -54,7 +54,7 @@ void main() {
         return jsonResponse({
           'id': id,
           'type': 'story',
-          'title': 'Story $id',
+          'title': 'AI software $id',
           if (id != 4) 'time': date.millisecondsSinceEpoch ~/ 1000,
         });
       });
@@ -62,7 +62,7 @@ void main() {
         client,
         clock: () => now,
       ).load([source('hn-api')]);
-      expect(result.articles.single.title, 'Story 3');
+      expect(result.articles.single.title, 'AI software 3');
       expect(result.articles.single.published, now);
       client.close();
     },
@@ -195,7 +195,7 @@ void main() {
           'id': id,
           'type': id == 0 ? 'comment' : 'story',
           'deleted': id == 1,
-          'title': 'Technology $id',
+          'title': 'AI software $id',
           'text': '<p>Context</p>',
           'time': 1793318400,
           'score': 5,
@@ -213,7 +213,8 @@ void main() {
         result.articles.first.link,
         startsWith('https://news.ycombinator.com/item?id='),
       );
-      expect(result.articles.first.excerpt, contains('5 추천점'));
+      expect(result.articles.first.canSummarize, isFalse);
+      expect(result.articles.first.excerpt, 'Context');
       client.close();
     },
   );

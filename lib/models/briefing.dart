@@ -53,10 +53,12 @@ class Article {
     required this.excerpt,
     required this.source,
     this.published,
+    this.canSummarize = false,
   });
   final String id, title, link, excerpt;
   final FeedSource source;
   final DateTime? published;
+  final bool canSummarize;
 }
 
 class Briefing {

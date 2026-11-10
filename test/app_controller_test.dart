@@ -49,7 +49,7 @@ void main() {
       if (r.url.host == 'example.com') {
         return http.Response('''<rss><channel>
         <item><title>Old</title><link>https://example.com/a</link></item>
-        <item><title>New</title><link>https://example.com/b</link></item>
+        <item><title>New</title><description>New developer tools improve API integration, error handling, documentation and production workflows with concrete release changes.</description><link>https://example.com/b</link></item>
         </channel></rss>''', 200);
       }
       aiCalls++;

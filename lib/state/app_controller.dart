@@ -130,7 +130,9 @@ class AppController extends ChangeNotifier {
 
   Future<void> summarize() async {
     if (summarizing || !hasKey) return;
-    final missing = articles.where((a) => !cache.containsKey(a.id)).toList();
+    final missing = articles
+        .where((a) => a.canSummarize && !cache.containsKey(a.id))
+        .toList();
     if (missing.isEmpty) return;
     summarizing = true;
     message = null;
