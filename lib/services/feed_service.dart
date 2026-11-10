@@ -97,28 +97,35 @@ class FeedService {
     }
     final items = byId.values.toList()
       ..sort(
-        (a, b) => (b.published ?? DateTime(1970)).compareTo(
-          a.published ?? DateTime(1970),
-        ),
+        (a, b) => a.canSummarize != b.canSummarize
+            ? (a.canSummarize ? -1 : 1)
+            : (b.published ?? DateTime(1970)).compareTo(
+                a.published ?? DateTime(1970),
+              ),
       );
     // Give every available source a place before taking a second article from
     // any source. A high-volume community feed must not crowd out official news.
-    final bySource = <String, List<Article>>{};
-    for (final item in items) {
-      bySource.putIfAbsent(item.source.id, () => []).add(item);
-    }
     final selected = <Article>[];
-    for (var round = 0; selected.length < 10; round++) {
-      var added = false;
-      for (final group in bySource.values) {
-        if (round < group.length) {
-          selected.add(group[round]);
-          added = true;
-          if (selected.length == 10) break;
-        }
+    void appendPool(Iterable<Article> pool) {
+      final groups = <String, List<Article>>{};
+      for (final article in pool) {
+        groups.putIfAbsent(article.source.id, () => []).add(article);
       }
-      if (!added) break;
+      for (var round = 0; selected.length < 10; round++) {
+        var added = false;
+        for (final group in groups.values) {
+          if (round < group.length) {
+            selected.add(group[round]);
+            added = true;
+            if (selected.length == 10) break;
+          }
+        }
+        if (!added) break;
+      }
     }
+
+    appendPool(items.where((a) => a.canSummarize));
+    appendPool(items.where((a) => !a.canSummarize));
     return FeedResult(selected, warnings);
   }
 
@@ -321,6 +328,7 @@ class FeedService {
     for (final row in rows.take(30)) {
       if (row is! Map) continue;
       String title, link, excerpt;
+      var eligible = true;
       DateTime? published;
       switch (source.format) {
         case 'github':
@@ -346,9 +354,15 @@ class FeedService {
             continue;
           }
           if (row['id'] is! int) continue;
-          link = 'https://news.ycombinator.com/item?id=${row['id']}';
-          excerpt =
-              'HN 항목 메타데이터 · ${row['score'] is num ? row['score'] : 0} 추천점 · ${row['descendants'] is num ? row['descendants'] : 0} 댓글. ${str(row['text'])}';
+          final text = plainText(str(row['text']));
+          if (!isTechContent('$title $text')) continue;
+          final original = str(row['url']);
+          if (original.isNotEmpty && !isSafeWebUrl(original)) continue;
+          link = original.isNotEmpty
+              ? original
+              : 'https://news.ycombinator.com/item?id=${row['id']}';
+          excerpt = text;
+          eligible = text.runes.length >= 80;
           published = timestamp(row['time']);
           if (published == null ||
               published.isBefore(clock().subtract(const Duration(days: 30))) ||
@@ -361,6 +375,7 @@ class FeedService {
           excerpt = str(row['description']);
           published = timestamp(row['published_at']);
         case 'hf':
+          eligible = false;
           final id = str(row['id']);
           if (!RegExp(
                 r'^[A-Za-z0-9][A-Za-z0-9_.-]*(/[A-Za-z0-9][A-Za-z0-9_.-]*)?$',
@@ -374,6 +389,7 @@ class FeedService {
               '공개 모델 메타데이터. 다운로드 ${row['downloads'] is num ? row['downloads'] : 0}, 좋아요 ${row['likes'] is num ? row['likes'] : 0}. 새 릴리스나 성능 검증을 뜻하지 않습니다.';
           published = timestamp(row['createdAt']);
         case 'stack':
+          eligible = false;
           title = str(row['title']);
           link = str(row['link']);
           excerpt =
@@ -387,12 +403,15 @@ class FeedService {
       if (title.isEmpty || !isSafeWebUrl(link)) continue;
       result.add(
         Article(
-          id: link,
+          id: source.format == 'hn'
+              ? 'https://news.ycombinator.com/item?id=${row['id']}'
+              : link,
           title: title,
           link: link,
           excerpt: String.fromCharCodes(excerpt.runes.take(3500)),
           source: source,
           published: published,
+          canSummarize: eligible && excerpt.runes.length >= 80,
         ),
       );
     }
@@ -515,11 +534,32 @@ List<Article> parseFeed(String raw, FeedSource source, [Uri? base]) {
           link: link,
           excerpt: excerpt.length > 3500 ? excerpt.substring(0, 3500) : excerpt,
           source: source,
+          canSummarize:
+              excerpt.runes.length >= 80 &&
+              (source.custom || source.id != 'hn-ai'),
           published: date(
             field(e, ['pubDate', 'published', 'updated', 'date']),
           ),
         );
       })
-      .where((a) => a.title.isNotEmpty && isSafeWebUrl(a.link))
+      .where(
+        (a) =>
+            a.title.isNotEmpty &&
+            isSafeWebUrl(a.link) &&
+            (source.custom ||
+                !const {
+                  'geeknews',
+                  'hn-ai',
+                  'mit-review',
+                  'simon',
+                }.contains(source.id) ||
+                isTechContent('${a.title} ${a.excerpt}')),
+      )
       .toList();
 }
+
+// A conservative keyword rule, not a semantic relevance or truth classifier.
+bool isTechContent(String text) => RegExp(
+  r'\b(ai|llm|llms|gpt|claude|gemini|openai|python|rust|javascript|typescript|java|golang|kotlin|swift|gpu|cuda|docker|kubernetes|devops|codebase|neural|transformer|rag|programming|developer|software|code|coding|database|linux|security|cloud|compiler|machine learning|deep learning|artificial intelligence|open source|api|sqlite|jupyter|browser|robotics|computing|quantum|semiconductor|chip|boj)\b|(^|[^a-z])(ai|llm|gpt)([^a-z]|$)|인공지능|개발|프로그래밍|코딩|알고리즘|백준|데이터|보안|오픈소스|모델|반도체|클라우드|컴퓨터|소프트웨어|프레임워크|언어모델',
+  caseSensitive: false,
+).hasMatch(text);

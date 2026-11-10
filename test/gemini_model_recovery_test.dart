@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const key = 'fixture-key-must-not-leak';
 const article = Article(
+  canSummarize: true,
   id: 'one',
   title: 'News',
   link: 'https://example.com/one',

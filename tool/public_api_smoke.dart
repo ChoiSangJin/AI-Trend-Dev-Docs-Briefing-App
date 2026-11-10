@@ -17,18 +17,26 @@ Future<void> main() async {
     'transformers-releases',
   };
   try {
-    final result = await FeedService(client)
-        .load(defaultFeedSources.where((s) => ids.contains(s.id)).toList());
-    final found = result.articles.map((a) => a.source.id).toSet();
-    if (result.warnings.isNotEmpty || !found.containsAll(ids)) {
-      stderr.writeln(
-        'Public API smoke failed: ${result.warnings}; received $found',
-      );
-      exitCode = 1;
-      return;
+    final service = FeedService(client);
+    final sources = defaultFeedSources
+        .where((s) => ids.contains(s.id))
+        .toList();
+    for (final source in sources) {
+      final result = await service.load([source]);
+      if (result.warnings.isNotEmpty || result.articles.isEmpty) {
+        stderr.writeln(
+          'Public API smoke failed for ${source.id}: ${result.warnings}',
+        );
+        exitCode = 1;
+        return;
+      }
+    }
+    final combined = await service.load(sources);
+    if (combined.articles.length > 10) {
+      throw StateError('Briefing limit exceeded');
     }
     stdout.writeln(
-      'Verified official API sources (${ids.length}): ${result.articles.length} selected entries.',
+      'Verified ${sources.length} API sources individually; ${combined.articles.length} selected, ${combined.articles.where((a) => a.canSummarize).length} eligible for summary.',
     );
   } finally {
     client.close();

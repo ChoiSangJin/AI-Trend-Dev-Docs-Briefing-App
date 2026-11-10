@@ -122,7 +122,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(height: 12),
           if (app.articles.isNotEmpty) ...[
             Text(
-              '${app.articles.map((a) => a.source.id).toSet().length}개 출처의 최신 소식을 골랐어요.',
+              '${app.articles.map((a) => a.source.id).toSet().length}개 출처에서 읽을 내용이 있는 소식을 우선 골랐어요.',
               style: const TextStyle(color: Color(0xFF60716D), fontSize: 12),
             ),
             const SizedBox(height: 8),
@@ -228,7 +228,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               padding: const EdgeInsets.only(bottom: 14),
               child: ArticleCard(
                 article: article,
-                briefing: app.cache[article.id],
+                briefing: article.canSummarize ? app.cache[article.id] : null,
                 read: app.readIds.contains(article.id),
                 onTap: () async {
                   await app.markRead(article.id);
@@ -270,138 +270,145 @@ class ArticleCard extends StatelessWidget {
   final bool read;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(22),
-    child: InkWell(
+  Widget build(BuildContext context) {
+    final briefing = article.canSummarize ? this.briefing : null;
+    return Material(
+      color: Colors.white,
       borderRadius: BorderRadius.circular(22),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: const BoxDecoration(
-                    color: accent,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    article.source.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: accent,
+                      shape: BoxShape.circle,
                     ),
                   ),
-                ),
-                if (read)
-                  const Icon(
-                    Icons.check_circle_outline,
-                    size: 16,
-                    color: Color(0xFF28645C),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              briefing?.title ?? article.title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 20,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (briefing != null) ...[
-              for (var i = 0; i < briefing!.lines.length; i++)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 9),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '0${i + 1}',
-                        style: const TextStyle(
-                          color: accent,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      article.source.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          briefing!.lines[i],
+                    ),
+                  ),
+                  if (read)
+                    const Icon(
+                      Icons.check_circle_outline,
+                      size: 16,
+                      color: Color(0xFF28645C),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                briefing?.title ?? article.title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 20,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (briefing != null) ...[
+                for (var i = 0; i < briefing.lines.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 9),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '0${i + 1}',
                           style: const TextStyle(
-                            fontSize: 13,
-                            height: 1.7,
-                            color: Color(0xFF52666A),
+                            color: accent,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            briefing.lines[i],
+                            style: const TextStyle(
+                              fontSize: 13,
+                              height: 1.7,
+                              color: Color(0xFF52666A),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: canvas,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '💡 ${briefing.term}',
+                    style: const TextStyle(fontSize: 12, height: 1.6),
                   ),
                 ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: canvas,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '💡 ${briefing!.term}',
-                  style: const TextStyle(fontSize: 12, height: 1.6),
-                ),
-              ),
-            ] else
-              Text(
-                article.excerpt.isEmpty
-                    ? '아직 AI 요약이 없어요. 원문을 먼저 확인할 수 있어요.'
-                    : article.excerpt,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 13,
-                  height: 1.7,
-                  color: Color(0xFF60716D),
-                ),
-              ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
+              ] else
                 Text(
-                  briefing == null ? '원문 미리보기' : 'AI 세 줄 요약',
+                  article.excerpt.isEmpty
+                      ? '제목만 제공되는 항목이에요. 기사 내용은 원문에서 확인해 주세요.'
+                      : article.excerpt,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.7,
                     color: Color(0xFF60716D),
-                    fontSize: 11,
                   ),
                 ),
-                const Spacer(),
-                const Text(
-                  '자세히 읽기',
-                  style: TextStyle(
-                    color: accent,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Text(
+                    briefing == null
+                        ? (article.canSummarize
+                              ? '원문 미리보기'
+                              : 'AI 요약 제외 · 제목/정보만 제공')
+                        : 'AI 세 줄 요약',
+                    style: const TextStyle(
+                      color: Color(0xFF60716D),
+                      fontSize: 11,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 5),
-                const Icon(Icons.arrow_forward, size: 16, color: accent),
-              ],
-            ),
-          ],
+                  const Spacer(),
+                  const Text(
+                    '자세히 읽기',
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  const Icon(Icons.arrow_forward, size: 16, color: accent),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class ArticleScreen extends ConsumerWidget {
@@ -409,7 +416,9 @@ class ArticleScreen extends ConsumerWidget {
   final Article article;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final briefing = ref.watch(controllerProvider).cache[article.id];
+    final briefing = article.canSummarize
+        ? ref.watch(controllerProvider).cache[article.id]
+        : null;
     return Scaffold(
       appBar: AppBar(title: Text(article.source.name)),
       body: Center(
@@ -443,6 +452,10 @@ class ArticleScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 24),
+              ],
+              if (!article.canSummarize) ...[
+                const Text('요약할 본문·발췌문이 부족하거나 정보 목록인 항목이에요. AI 요약을 생성하지 않습니다.'),
+                const SizedBox(height: 16),
               ],
               if (article.excerpt.isNotEmpty) ...[
                 const Text(

@@ -15,6 +15,7 @@ const source = FeedSource(
   category: 'test',
 );
 Article article({String? title, String? excerpt}) => Article(
+  canSummarize: true,
   id: 'one',
   title: title ?? 'News',
   link: 'https://example.com/one',

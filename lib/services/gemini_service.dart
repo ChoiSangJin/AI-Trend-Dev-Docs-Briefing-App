@@ -398,6 +398,7 @@ class GeminiService {
   }
 
   Future<List<Briefing>> summarize(String key, List<Article> articles) async {
+    articles = articles.where((a) => a.canSummarize).toList();
     if (articles.isEmpty) return [];
     if (articles.length > 10) {
       throw ArgumentError('A batch may contain at most 10 articles');

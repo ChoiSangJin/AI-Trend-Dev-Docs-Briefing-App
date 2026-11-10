@@ -21,6 +21,7 @@ class LocalStore {
   Future<void> deleteKey() => secure.delete(key: 'gemini_key');
   Map<String, Briefing> readCache() {
     try {
+      if (prefs.getInt('briefing_content_version') != 1) return {};
       final raw = jsonDecode(prefs.getString('briefings') ?? '[]') as List;
       final cache = {
         for (final j in raw)
@@ -54,6 +55,7 @@ class LocalStore {
       ),
     );
     await prefs.setInt('hn_summary_provenance', 1);
+    await prefs.setInt('briefing_content_version', 1);
   }
 
   List<FeedSource> readSources() {

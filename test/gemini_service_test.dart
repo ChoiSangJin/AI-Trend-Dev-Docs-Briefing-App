@@ -15,6 +15,7 @@ const feed = FeedSource(
 );
 const key = 'AIza_test_fixture_not_a_real_key_123456789';
 Article article(String id) => Article(
+  canSummarize: true,
   id: id,
   title: 'Release $id',
   link: 'https://example.com/$id',
@@ -74,6 +75,7 @@ void main() {
     });
     await GeminiService(client, prefs).summarize(key, [
       Article(
+        canSummarize: true,
         id: 'dated',
         title: 'News',
         link: 'https://example.com/dated',
