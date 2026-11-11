@@ -1,6 +1,11 @@
 name: Publish signed Android release
 on:
   workflow_dispatch:
+    inputs:
+      allow_signing_change:
+        description: 'Approve a different signing certificate; users must uninstall and reinstall'
+        type: boolean
+        default: false
 permissions:
   contents: write
 concurrency:
@@ -39,6 +44,7 @@ jobs:
           gh release download --repo "$GITHUB_REPOSITORY" --pattern ai-morning-briefing-arm64.apk --dir "$RUNNER_TEMP/previous-apk"
       - name: Restore signing identity from GitHub Secrets
         env:
+          ALLOW_SIGNING_CHANGE: ${{ inputs.allow_signing_change }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -70,9 +76,13 @@ jobs:
           previous = str(Path(os.environ['RUNNER_TEMP']) / 'previous-apk/ai-morning-briefing-arm64.apk')
           output = subprocess.check_output([signer, 'verify', '--print-certs', previous], text=True)
           previous_certs = re.findall(r'^Signer #\d+ certificate SHA-256 digest: (.+)$', output, re.M)
-          if previous_certs != [hashlib.sha256(public_cert.stdout).hexdigest()]:
-              fail('ANDROID_KEYSTORE_BASE64 certificate differs from the previous public APK; restore the original signing keystore')
-          print('GitHub signing password, alias and previous release certificate verified')
+          expected = hashlib.sha256(public_cert.stdout).hexdigest()
+          changed = previous_certs != [expected]
+          if changed and os.environ.get('ALLOW_SIGNING_CHANGE') != 'true':
+              fail('Signing certificate changed; explicit allow_signing_change approval is required for a fresh-install release')
+          with Path(os.environ['GITHUB_ENV']).open('a') as env:
+              env.write(f'SIGNING_CERT_SHA256={expected}\nFRESH_INSTALL_REQUIRED={str(changed).lower()}\n')
+          print('GitHub signing password, alias and certificate verified; fresh install required:', changed)
           def escape(value):
               replacements = {'\\': '\\\\', '\n': '\\n', '\r': '\\r', '\t': '\\t', ' ': '\\ ', '=': '\\=', ':': '\\:', '#': '\\#', '!': '\\!'}
               return ''.join(replacements.get(c, c) if ord(c) < 128 else ''.join('\\u%04x' % int.from_bytes(c.encode('utf-16-be')[i:i+2], 'big') for i in range(0, len(c.encode('utf-16-be')), 2)) for c in value)
@@ -114,8 +124,10 @@ jobs:
               print('::error title=APK compatibility::' + message)
               raise SystemExit(1)
           current, old = cert(apk), cert(previous)
-          if not current or current != old:
-              fail('Signing certificate does not match the previous public release')
+          if current != [os.environ['SIGNING_CERT_SHA256']]:
+              fail('APK was not signed by the configured GitHub Secrets certificate')
+          if current != old and os.environ['FRESH_INSTALL_REQUIRED'] != 'true':
+              fail('Signing certificate changed without fresh-install approval')
           analyzer = str(Path(os.environ['ANDROID_HOME']) / 'cmdline-tools/latest/bin/apkanalyzer')
           def manifest(path, field):
               return subprocess.check_output([analyzer, 'manifest', field, path], text=True).strip()
@@ -127,7 +139,7 @@ jobs:
               fail('Application ID changed')
           if int(manifest(apk, 'version-code')) <= int(manifest(previous, 'version-code')):
               fail('Version code must increase')
-          print('Verified release version, application ID and signing compatibility')
+          print('Verified release version, application ID and configured signing certificate')
           PY
           "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 4 build/release/ai-morning-briefing-arm64.apk
           cd build/release
@@ -137,9 +149,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          cp RELEASE_NOTES.md "$RUNNER_TEMP/release-notes.md"
+          if [ "$FRESH_INSTALL_REQUIRED" = 'true' ]; then
+            python3 - <<'PYNOTES'
+          import os
+          from pathlib import Path
+          p = Path(os.environ['RUNNER_TEMP']) / 'release-notes.md'
+          p.write_text('서명 키 변경: 기존 앱을 삭제한 뒤 새 APK를 설치해야 합니다. 앱 삭제 시 저장된 API 키·설정·읽음 기록이 삭제됩니다.\n\n' + p.read_text())
+          PYNOTES
+          fi
           gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
             --target "$SOURCE_SHA" --title "AI 모닝 브리핑 $RELEASE_TAG" \
-            --notes-file RELEASE_NOTES.md \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
             build/release/ai-morning-briefing-arm64.apk build/release/SHA256SUMS.txt
       - name: Remove signing files
         if: always()
