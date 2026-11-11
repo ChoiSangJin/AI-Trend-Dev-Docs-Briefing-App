@@ -144,3 +144,9 @@ Google Developers Blog의 `https://developers.googleblog.com/feeds/posts/default
 Anthropic News, xAI News, X Blog 홈페이지는 접속되지만 페이지에 RSS/Atom 자동 검색 링크를 찾지 못했습니다. 확인한 `/rss.xml`, `/feed.xml`, 뉴스 RSS 후보와 X 블로그 RSS 후보는 404여서 기본 소스로 등록하지 않았습니다. 공식 RSS가 절대 없다는 의미는 아닙니다. Anthropic·Claude와 xAI는 검증된 공식 GitHub 릴리스 수집을 유지하며 X 게시물이나 타사 생성 RSS는 추가하지 않습니다.
 
 `dart run tool/feed_smoke.dart`는 Google Developers·DeepMind·OpenAI RSS와 OpenAI·Anthropic·Claude Code·xAI 공식 릴리스를 출처별로 개별 수집해 일부 출처 실패가 다른 출처 성공에 가려지지 않도록 확인합니다.
+
+### GitHub Actions로 서명된 릴리스 게시
+
+현재 배포는 main의 `Publish signed Android release` 워크플로를 수동 실행합니다. 저장된 GitHub Secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`만 사용하며 값을 출력하지 않습니다. 임시 서명 파일은 작업 종료 시 삭제합니다.
+
+`pubspec.yaml`과 설정 화면 버전, `RELEASE_NOTES.md`를 갱신해 머지한 뒤 실행하세요. 워크플로는 테스트·분석·릴리스 빌드 후 기존 공개 APK와 서명 인증서·앱 ID 일치, 버전 코드 증가, arm64 구성, 체크섬·정렬을 검증합니다. 성공한 APK와 체크섬만 GitHub Releases에 게시하며 기존 태그가 있으면 중단합니다. 로컬에 보관된 서명 파일은 Actions 배포에서 사용하지 않습니다.
