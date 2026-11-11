@@ -47,7 +47,7 @@ python3 tool/verify_apk.py build/app/outputs/flutter-apk/app-debug.apk
 
 ## 릴리스 서명 및 배포
 
-업데이트 APK는 **항상 같은 서명 키**를 사용해야 합니다. 서명 키와 비밀번호를 Git이나 릴리스에 올리지 마세요. 클라우드에서 생성한 개인 서명 자료는 `/workspace/toolchains/signing/`에 보관하며, 보안 저장소에 별도 백업해야 합니다. 해당 디렉터리와 `android/key.properties`는 공개 저장소에 포함하지 않습니다.
+기존 앱 위에 업데이트하려면 **같은 서명 키**를 사용해야 합니다. v1.0.12는 사용자 승인에 따라 GitHub Secrets의 새 키로 전환하므로 기존 앱을 삭제한 뒤 새로 설치해야 합니다. 삭제 시 저장된 API 키·설정·읽음 기록이 사라집니다. 서명 키와 비밀번호를 Git이나 릴리스에 올리지 마세요. 클라우드에서 생성한 개인 서명 자료는 `/workspace/toolchains/signing/`에 보관하며, 보안 저장소에 별도 백업해야 합니다. 해당 디렉터리와 `android/key.properties`는 공개 저장소에 포함하지 않습니다.
 
 다른 환경에서는 `android/key.properties`를 다음 형식으로 직접 준비하세요. 실제 값은 로컬에만 넣습니다.
 
@@ -150,3 +150,5 @@ Anthropic News, xAI News, X Blog 홈페이지는 접속되지만 페이지에 RS
 현재 배포는 main의 `Publish signed Android release` 워크플로를 수동 실행합니다. 저장된 GitHub Secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`만 사용하며 값을 출력하지 않습니다. 임시 서명 파일은 작업 종료 시 삭제합니다.
 
 `pubspec.yaml`과 설정 화면 버전, `RELEASE_NOTES.md`를 갱신해 머지한 뒤 실행하세요. 워크플로는 테스트·분석·릴리스 빌드 후 기존 공개 APK와 서명 인증서·앱 ID 일치, 버전 코드 증가, arm64 구성, 체크섬·정렬을 검증합니다. 성공한 APK와 체크섬만 GitHub Releases에 게시하며 기존 태그가 있으면 중단합니다. 로컬에 보관된 서명 파일은 Actions 배포에서 사용하지 않습니다.
+
+서명 키 전환은 `allow_signing_change` 입력을 명시적으로 true로 실행한 경우에만 허용합니다. 기본값은 false로, 이후 릴리스에서는 새로 배포된 APK의 인증서와 일치를 계속 확인합니다. 키 전환 시 릴리스 안내에 삭제·재설치 및 데이터 삭제 안내를 자동으로 추가합니다. APK 자체는 항상 현재 GitHub Secrets 인증서와 일치해야 합니다.
