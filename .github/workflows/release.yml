@@ -62,7 +62,22 @@ jobs:
           properties.chmod(0o600)
           PY
       - name: Build and test signed arm64 APK
-        run: bash tool/build_release.sh
+        run: |
+          set +e
+          bash tool/build_release.sh > "$RUNNER_TEMP/release-build.log" 2>&1
+          result=$?
+          cat "$RUNNER_TEMP/release-build.log"
+          if [ "$result" -ne 0 ]; then
+            python3 - <<'PYDIAG'
+          import os
+          from pathlib import Path
+          lines = (Path(os.environ['RUNNER_TEMP']) / 'release-build.log').read_text(errors='replace').splitlines()
+          diagnostic = '\n'.join(lines[-45:])
+          diagnostic = diagnostic.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          print('::error title=Release build failure::' + diagnostic)
+          PYDIAG
+          fi
+          exit "$result"
       - name: Verify update compatibility and release metadata
         run: |
           set -euo pipefail
