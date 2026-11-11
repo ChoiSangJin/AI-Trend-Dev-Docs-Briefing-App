@@ -130,9 +130,17 @@ HN 최신 항목은 플랫폼 등록 시각이 없거나 30일보다 오래됐�
 
 | 제공사 | 수집 소스 |
 | --- | --- |
-| Google | Google AI Blog, Google DeepMind RSS, Google Gen AI SDK 릴리스 |
+| Google | Google AI Blog, Google DeepMind RSS, Google Developers Blog RSS, Google Gen AI SDK 릴리스 |
 | OpenAI / GPT | OpenAI News RSS, Python SDK 릴리스 |
 | Anthropic / Claude | Python SDK 및 Claude Code 공식 릴리스 |
 | xAI / Grok | xAI Python SDK 공식 GitHub Releases API, Atom 대체 피드 |
 
 SDK 릴리스는 개발 도구 변경 소식이며 제공사의 전체 블로그·제품 발표를 대체하지 않습니다. X(트위터) 게시물 피드와 xAI(Grok)는 구분합니다. 사용자 피드는 기본 소스 수와 별도로 최대 30개까지 추가할 수 있습니다.
+
+### 공식 블로그 RSS 확인 (2026-11-11)
+
+Google Developers Blog의 `https://developers.googleblog.com/feeds/posts/default/`는 HTTP 200 및 RSS 20개 항목을 확인해 추가했습니다. 기존 설치에는 소스 목록 병합으로 추가되며 기존 중지 설정과 사용자 피드는 유지됩니다.
+
+Anthropic News, xAI News, X Blog 홈페이지는 접속되지만 페이지에 RSS/Atom 자동 검색 링크를 찾지 못했습니다. 확인한 `/rss.xml`, `/feed.xml`, 뉴스 RSS 후보와 X 블로그 RSS 후보는 404여서 기본 소스로 등록하지 않았습니다. 공식 RSS가 절대 없다는 의미는 아닙니다. Anthropic·Claude와 xAI는 검증된 공식 GitHub 릴리스 수집을 유지하며 X 게시물이나 타사 생성 RSS는 추가하지 않습니다.
+
+`dart run tool/feed_smoke.dart`는 Google Developers·DeepMind·OpenAI RSS와 OpenAI·Anthropic·Claude Code·xAI 공식 릴리스를 출처별로 개별 수집해 일부 출처 실패가 다른 출처 성공에 가려지지 않도록 확인합니다.
