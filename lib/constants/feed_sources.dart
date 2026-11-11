@@ -47,6 +47,12 @@ const defaultFeedSources = <FeedSource>[
     category: '공식 업데이트',
   ),
   FeedSource(
+    id: 'google-developers',
+    name: 'Google Developers Blog',
+    url: 'https://developers.googleblog.com/feeds/posts/default/',
+    category: '공식 업데이트',
+  ),
+  FeedSource(
     id: 'huggingface',
     name: 'Hugging Face',
     url: 'https://huggingface.co/blog/feed.xml',
