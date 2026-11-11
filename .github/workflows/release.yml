@@ -45,7 +45,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           python3 - <<'PY'
-          import base64, os, subprocess
+          import base64, os, subprocess, hashlib, re
           from pathlib import Path
           names = ['ANDROID_KEYSTORE_BASE64', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD']
           if any(not os.environ.get(name) for name in names):
@@ -63,7 +63,16 @@ jobs:
           result = subprocess.run(command + ['-alias', os.environ['ANDROID_KEY_ALIAS']], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
           if result.returncode:
               fail('ANDROID_KEY_ALIAS was not found in the registered keystore')
-          print('GitHub signing keystore password and alias verified')
+          public_cert = subprocess.run(['keytool', '-exportcert', '-keystore', str(key), '-storepass:env', 'ANDROID_KEYSTORE_PASSWORD', '-alias', os.environ['ANDROID_KEY_ALIAS']], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+          if public_cert.returncode:
+              fail('Unable to export the signing public certificate')
+          signer = str(Path(os.environ['ANDROID_HOME']) / 'build-tools/36.0.0/apksigner')
+          previous = str(Path(os.environ['RUNNER_TEMP']) / 'previous-apk/ai-morning-briefing-arm64.apk')
+          output = subprocess.check_output([signer, 'verify', '--print-certs', previous], text=True)
+          previous_certs = re.findall(r'^Signer #\d+ certificate SHA-256 digest: (.+)$', output, re.M)
+          if previous_certs != [hashlib.sha256(public_cert.stdout).hexdigest()]:
+              fail('ANDROID_KEYSTORE_BASE64 certificate differs from the previous public APK; restore the original signing keystore')
+          print('GitHub signing password, alias and previous release certificate verified')
           def escape(value):
               replacements = {'\\': '\\\\', '\n': '\\n', '\r': '\\r', '\t': '\\t', ' ': '\\ ', '=': '\\=', ':': '\\:', '#': '\\#', '!': '\\!'}
               return ''.join(replacements.get(c, c) if ord(c) < 128 else ''.join('\\u%04x' % int.from_bytes(c.encode('utf-16-be')[i:i+2], 'big') for i in range(0, len(c.encode('utf-16-be')), 2)) for c in value)
@@ -101,20 +110,23 @@ jobs:
           def cert(path):
               output = subprocess.check_output([os.environ['APK_SIGNER'], 'verify', '--print-certs', path], text=True)
               return re.findall(r'^Signer #\d+ certificate SHA-256 digest: (.+)$', output, re.M)
+          def fail(message):
+              print('::error title=APK compatibility::' + message)
+              raise SystemExit(1)
           current, old = cert(apk), cert(previous)
           if not current or current != old:
-              raise SystemExit('Signing certificate does not match the previous public release')
+              fail('Signing certificate does not match the previous public release')
           analyzer = str(Path(os.environ['ANDROID_HOME']) / 'cmdline-tools/latest/bin/apkanalyzer')
           def manifest(path, field):
               return subprocess.check_output([analyzer, 'manifest', field, path], text=True).strip()
           if manifest(apk, 'version-name') != os.environ['RELEASE_TAG'][1:]:
-              raise SystemExit('APK version mismatch')
+              fail('APK version mismatch')
           if manifest(apk, 'debuggable') != 'false':
-              raise SystemExit('Debuggable APK cannot be published')
+              fail('Debuggable APK cannot be published')
           if manifest(apk, 'application-id') != manifest(previous, 'application-id'):
-              raise SystemExit('Application ID changed')
+              fail('Application ID changed')
           if int(manifest(apk, 'version-code')) <= int(manifest(previous, 'version-code')):
-              raise SystemExit('Version code must increase')
+              fail('Version code must increase')
           print('Verified release version, application ID and signing compatibility')
           PY
           "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 4 build/release/ai-morning-briefing-arm64.apk
