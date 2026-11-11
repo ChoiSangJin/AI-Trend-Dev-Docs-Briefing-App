@@ -174,8 +174,8 @@ class AppController extends ChangeNotifier {
     if (sources.any((s) => s.url == url)) {
       throw const BriefingException('이미 추가한 피드예요.');
     }
-    if (sources.length >= 30) {
-      throw const BriefingException('피드는 최대 30개까지 추가할 수 있어요.');
+    if (sources.where((s) => s.custom).length >= 30) {
+      throw const BriefingException('사용자 피드는 최대 30개까지 추가할 수 있어요.');
     }
     final updated = [
       ...sources,

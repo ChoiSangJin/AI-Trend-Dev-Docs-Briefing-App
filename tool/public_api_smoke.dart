@@ -8,6 +8,7 @@ Future<void> main() async {
   final io = HttpClient()..findProxy = HttpClient.findProxyFromEnvironment;
   final client = IOClient(io);
   const ids = {
+    'xai-sdk',
     'langchain-releases',
     'papers',
     'hf-models',

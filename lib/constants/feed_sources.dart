@@ -33,6 +33,14 @@ const defaultFeedSources = <FeedSource>[
     category: '공식 업데이트',
   ),
   FeedSource(
+    id: 'xai-sdk',
+    name: 'xAI Python SDK · Grok',
+    url: 'https://api.github.com/repos/xai-org/xai-sdk-python/releases?per_page=5',
+    format: 'github',
+    fallbackUrl: 'https://github.com/xai-org/xai-sdk-python/releases.atom',
+    category: '공식 업데이트',
+  ),
+  FeedSource(
     id: 'google-ai',
     name: 'Google AI Blog',
     url: 'https://blog.google/technology/ai/rss/',
