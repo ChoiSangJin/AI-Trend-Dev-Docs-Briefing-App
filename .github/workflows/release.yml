@@ -45,7 +45,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           python3 - <<'PY'
-          import base64, os
+          import base64, os, subprocess
           from pathlib import Path
           names = ['ANDROID_KEYSTORE_BASE64', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD']
           if any(not os.environ.get(name) for name in names):
@@ -53,9 +53,20 @@ jobs:
           key = Path(os.environ['RUNNER_TEMP']) / 'android-release.keystore'
           key.write_bytes(base64.b64decode(''.join(os.environ[names[0]].split()), validate=True))
           key.chmod(0o600)
+          def fail(message):
+              print('::error title=Signing Secrets::' + message)
+              raise SystemExit(1)
+          command = ['keytool', '-list', '-keystore', str(key), '-storepass:env', 'ANDROID_KEYSTORE_PASSWORD']
+          result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+          if result.returncode:
+              fail('ANDROID_KEYSTORE_PASSWORD cannot unlock ANDROID_KEYSTORE_BASE64; update the matching GitHub Secrets')
+          result = subprocess.run(command + ['-alias', os.environ['ANDROID_KEY_ALIAS']], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+          if result.returncode:
+              fail('ANDROID_KEY_ALIAS was not found in the registered keystore')
+          print('GitHub signing keystore password and alias verified')
           def escape(value):
               replacements = {'\\': '\\\\', '\n': '\\n', '\r': '\\r', '\t': '\\t', ' ': '\\ ', '=': '\\=', ':': '\\:', '#': '\\#', '!': '\\!'}
-              return ''.join(replacements.get(c, c) if ord(c) < 128 else c.encode('unicode_escape').decode('ascii') for c in value)
+              return ''.join(replacements.get(c, c) if ord(c) < 128 else ''.join('\\u%04x' % int.from_bytes(c.encode('utf-16-be')[i:i+2], 'big') for i in range(0, len(c.encode('utf-16-be')), 2)) for c in value)
           values = {'storeFile': str(key), 'storePassword': os.environ[names[1]], 'keyAlias': os.environ[names[2]], 'keyPassword': os.environ[names[3]]}
           properties = Path('android/key.properties')
           properties.write_text(''.join(f'{k}={escape(v)}\n' for k, v in values.items()), encoding='ascii')
