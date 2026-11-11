@@ -125,3 +125,14 @@ HN 최신 항목은 플랫폼 등록 시각이 없거나 30일보다 오래됐�
 - 실제 본문/발췌문이 80자 이상인 항목을 요약합니다. 제목·추천수·모델 목록 등의 메타데이터와 HNRSS 링크 설명은 AI 요약에서 제외하고 안내를 표시합니다. 외부 기사 전문을 추가 수집하지 않습니다.
 - 본문이 있는 항목을 출처별로 순환 선택해 최대 10개를 채운 뒤 정보만 제공되는 항목으로 보충합니다. 일부 종합 피드는 기술 키워드로 관련성을 선별하며 사용자 지정 피드는 이 필터를 적용하지 않습니다.
 - 이전 정책의 요약 캐시는 한 번 재생성합니다. API 키, 설정, 읽음 기록은 유지합니다.
+
+## 공식 AI 제공사 소스
+
+| 제공사 | 수집 소스 |
+| --- | --- |
+| Google | Google AI Blog, Google DeepMind RSS, Google Gen AI SDK 릴리스 |
+| OpenAI / GPT | OpenAI News RSS, Python SDK 릴리스 |
+| Anthropic / Claude | Python SDK 및 Claude Code 공식 릴리스 |
+| xAI / Grok | xAI Python SDK 공식 GitHub Releases API, Atom 대체 피드 |
+
+SDK 릴리스는 개발 도구 변경 소식이며 제공사의 전체 블로그·제품 발표를 대체하지 않습니다. X(트위터) 게시물 피드와 xAI(Grok)는 구분합니다. 사용자 피드는 기본 소스 수와 별도로 최대 30개까지 추가할 수 있습니다.
