@@ -51,9 +51,7 @@ void main() {
         final items = jsonDecode(
           body['contents'][0]['parts'][0]['text'] as String,
         ) as List;
-        expect(items.map((item) => item['id']), [
-          'https://example.com/article',
-        ]);
+        expect(items.map((item) => item['id']), ['item-0']);
         return http.Response(
           jsonEncode({
             'candidates': [
@@ -64,7 +62,7 @@ void main() {
                     {
                       'text': jsonEncode([
                         {
-                          'id': 'https://example.com/article',
+                          'id': 'item-0',
                           'ko_title': '개발 도구 소식',
                           'summary_lines': ['첫째', '둘째', '셋째'],
                           'term_explanation': '쉬운 설명',

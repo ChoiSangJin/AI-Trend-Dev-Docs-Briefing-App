@@ -253,6 +253,16 @@ class AppController extends ChangeNotifier {
         final result = await gemini.summarize(key, pending);
         cache.addEntries(result.map((b) => MapEntry(b.id, b)));
         await store.saveCache(cache);
+        final warning = gemini.lastSummaryWarning;
+        if (warning != null) {
+          if (design) {
+            designMessage = warning;
+          } else if (it) {
+            itMessage = warning;
+          } else {
+            message = warning;
+          }
+        }
       });
     } on BriefingException catch (e) {
       if (design) {
