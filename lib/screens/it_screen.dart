@@ -13,7 +13,7 @@ class ItScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final app = ref.watch(controllerProvider);
     return RefreshIndicator(
-      onRefresh: app.refresh,
+      onRefresh: app.refreshIt,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(22, 24, 22, 28),
@@ -30,7 +30,7 @@ class ItScreen extends ConsumerWidget {
               ),
               IconButton(
                 tooltip: '새 소식 불러오기',
-                onPressed: app.loading ? null : app.refresh,
+                onPressed: app.itLoading ? null : app.refreshIt,
                 icon: const Icon(Icons.refresh),
               ),
             ],
@@ -41,7 +41,7 @@ class ItScreen extends ConsumerWidget {
             style: const TextStyle(color: Color(0xFF60716D)),
           ),
           const SizedBox(height: 20),
-          if (app.loading) const Center(child: CircularProgressIndicator()),
+          if (app.itLoading) const Center(child: CircularProgressIndicator()),
           if (app.itWarnings.isNotEmpty)
             ExpansionTile(
               title: Text('일부 소스 안내 (${app.itWarnings.length})'),
@@ -50,7 +50,7 @@ class ItScreen extends ConsumerWidget {
                   ListTile(title: Text(warning)),
               ],
             ),
-          if (app.itArticles.isEmpty && !app.loading)
+          if (app.itArticles.isEmpty && !app.itLoading)
             const SoftPanel(
               child: Text('아직 도착한 IT·개발 소식이 없어요. 설정에서 소스를 확인하거나 새로고침해 주세요.'),
             ),

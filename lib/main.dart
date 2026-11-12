@@ -156,7 +156,10 @@ class _AppShellState extends ConsumerState<AppShell>
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selected,
-        onDestinationSelected: (value) => setState(() => selected = value),
+        onDestinationSelected: (value) {
+          if (value == 1 && !app.itLoaded) app.refreshIt();
+          setState(() => selected = value);
+        },
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.wb_sunny_outlined),

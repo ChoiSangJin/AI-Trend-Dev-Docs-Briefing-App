@@ -23,7 +23,7 @@ class KeyStore extends LocalStore {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  test('AI and IT feeds stay in separate ten-item views', () async {
+  test('AI and IT feeds refresh independently', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final store = KeyStore(prefs);
@@ -44,8 +44,10 @@ void main() {
       ai,
       it,
     ]);
+    final releaseIt = Completer<void>();
     final client = MockClient((request) async {
       final isIt = request.url.path == '/it';
+      if (isIt) await releaseIt.future;
       final title = isIt ? 'Developer design' : 'AI model news';
       final link = isIt
           ? 'https://example.com/it-post'
@@ -65,18 +67,18 @@ void main() {
     controller.addListener(() {
       if (!controller.loading &&
           controller.articles.length == 1 &&
-          controller.itArticles.length == 1 &&
           !ready.isCompleted) {
         ready.complete();
       }
     });
-    await ready.future.timeout(
-      const Duration(seconds: 3),
-      onTimeout: () => throw StateError(
-        'ai=${controller.articles.length}, it=${controller.itArticles.length}, warnings=${controller.warnings}, itWarnings=${controller.itWarnings}, loading=${controller.loading}',
-      ),
-    );
+    await ready.future.timeout(const Duration(seconds: 3));
+    expect(controller.itArticles, isEmpty);
+    final itRefresh = controller.refreshIt();
+    await controller.refresh();
+    expect(controller.itLoading, isTrue);
     expect(controller.articles.single.source.id, ai.id);
+    releaseIt.complete();
+    await itRefresh;
     expect(controller.itArticles.single.source.id, it.id);
     await controller.setSource(it, false);
     expect(controller.articles.single.source.id, ai.id);
