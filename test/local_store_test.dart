@@ -133,6 +133,17 @@ void main() {
     expect(sources.every((s) => s.category == 'IT·개발'), isTrue);
     expect(sources.every((s) => Uri.parse(s.url).scheme == 'https'), isTrue);
   });
+  test('Dedicated UX publications ship as design sources', () {
+    const expected = {
+      'ux-collective',
+      'ux-planet',
+      'nngroup',
+      'smashing-magazine',
+    };
+    final sources = defaultFeedSources.where((s) => expected.contains(s.id));
+    expect(sources.map((s) => s.id).toSet(), expected);
+    expect(sources.every((s) => s.category == '디자인'), isTrue);
+  });
   TestWidgetsFlutterBinding.ensureInitialized();
   test(
     'Streak counts one visit per civil day, crosses months, and resets on gaps',

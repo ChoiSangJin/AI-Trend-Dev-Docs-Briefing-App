@@ -2,6 +2,30 @@ import '../models/briefing.dart';
 
 const defaultFeedSources = <FeedSource>[
   FeedSource(
+    id: 'ux-collective',
+    name: 'UX Collective',
+    url: 'https://uxdesign.cc/feed',
+    category: '디자인',
+  ),
+  FeedSource(
+    id: 'ux-planet',
+    name: 'UX Planet',
+    url: 'https://uxplanet.org/feed',
+    category: '디자인',
+  ),
+  FeedSource(
+    id: 'nngroup',
+    name: 'Nielsen Norman Group',
+    url: 'https://www.nngroup.com/feed/rss/',
+    category: '디자인',
+  ),
+  FeedSource(
+    id: 'smashing-magazine',
+    name: 'Smashing Magazine',
+    url: 'https://www.smashingmagazine.com/feed/',
+    category: '디자인',
+  ),
+  FeedSource(
     id: 'woowahan-tech',
     name: '우아한형제들 기술 블로그',
     url: 'https://techblog.woowahan.com/feed/',

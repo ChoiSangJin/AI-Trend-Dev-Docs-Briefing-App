@@ -86,6 +86,51 @@ void main() {
     controller.dispose();
     client.close();
   });
+  test('Design feeds load only when the design tab requests them', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final store = KeyStore(prefs);
+    const design = FeedSource(
+      id: 'design-test',
+      name: 'Design',
+      url: 'https://example.com/design',
+      category: '디자인',
+    );
+    await store.saveSources([
+      ...defaultFeedSources.map((s) => s.withEnabled(false)),
+      design,
+    ]);
+    var designRequests = 0;
+    final client = MockClient((request) async {
+      designRequests++;
+      return http.Response(
+        '<rss><channel><item><title>Accessible navigation</title><link>https://example.com/design-post</link></item></channel></rss>',
+        200,
+      );
+    });
+    final controller = AppController(
+      store,
+      FeedService(client),
+      GeminiService(client, prefs),
+      NotificationService(),
+    );
+    final initialized = Completer<void>();
+    controller.addListener(() {
+      if (controller.initialized &&
+          !controller.loading &&
+          !initialized.isCompleted) {
+        initialized.complete();
+      }
+    });
+    await initialized.future.timeout(const Duration(seconds: 3));
+    expect(designRequests, 0);
+
+    await controller.refreshDesign();
+    expect(designRequests, 1);
+    expect(controller.designArticles.single.source.id, design.id);
+    expect(controller.designLoaded, isTrue);
+    controller.dispose();
+  });
   test('Cached summaries render first, only new items are batched, and refresh reuses the cache', () async {
     SharedPreferences.setMockInitialValues({'gemini_summary_model_policy': 2});
     final prefs = await SharedPreferences.getInstance();
