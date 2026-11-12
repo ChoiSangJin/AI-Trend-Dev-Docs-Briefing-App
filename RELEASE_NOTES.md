@@ -1,10 +1,8 @@
-Google Developers와 xAI 공식 소스를 추가했습니다.
+IT·개발 소식 화면을 추가했습니다.
 
-- Google Developers Blog 공식 RSS 추가
-- xAI(Grok) Python SDK 공식 릴리스 추가
-- 기본 소스 수와 별도로 사용자 피드 최대 30개 지원
-- 기존 DeepMind·OpenAI RSS와 Anthropic·Claude 공식 릴리스 유지
+- AI 브리핑과 분리된 기술 블로그 소식 목록
+- 우아한형제들, 토스, 카카오, 네이버 D2와 Netflix, AWS, Apple Developer, Coupang Engineering 피드
+- 화면마다 최대 10개 소식, 출처별 설정·읽음 기록·새로고침 지원
+- IT·개발 화면은 RSS 발췌문과 원문 링크를 표시합니다. Gemini 요약 요청은 하지 않습니다.
 
-이번 버전은 승인된 새 서명 키를 사용합니다. 기존 앱 삭제 후 새로 설치해야 하며, 삭제 시 API 키·설정·읽음 기록이 사라집니다. Anthropic·xAI·X 블로그는 정상 공식 RSS를 확인하지 못해 추가하지 않았습니다.
-
-Android arm64 전용 APK입니다. GitHub Secrets로 서명하며 등록된 Secrets 인증서로 서명됐는지와 앱 ID·버전 코드·APK 구성을 확인한 뒤 게시합니다.
+이 버전은 v1.0.12와 같은 GitHub Secrets 서명 키를 사용합니다. 기존 v1.0.12 앱 위에 업데이트할 수 있습니다. v1.0.11 이전 버전은 서명 키가 달라 삭제 후 설치해야 하며 삭제하면 저장된 데이터가 사라집니다.

@@ -23,6 +23,67 @@ class KeyStore extends LocalStore {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('AI and IT feeds stay in separate ten-item views', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final store = KeyStore(prefs);
+    const ai = FeedSource(
+      id: 'ai-test',
+      name: 'AI',
+      url: 'https://example.com/ai',
+      category: '공식 업데이트',
+    );
+    const it = FeedSource(
+      id: 'it-test',
+      name: 'IT',
+      url: 'https://example.com/it',
+      category: 'IT·개발',
+    );
+    await store.saveSources([
+      ...defaultFeedSources.map((s) => s.withEnabled(false)),
+      ai,
+      it,
+    ]);
+    final client = MockClient((request) async {
+      final isIt = request.url.path == '/it';
+      final title = isIt ? 'Developer design' : 'AI model news';
+      final link = isIt
+          ? 'https://example.com/it-post'
+          : 'https://example.com/ai-post';
+      return http.Response(
+        '<rss><channel><item><title>$title</title><link>$link</link></item></channel></rss>',
+        200,
+      );
+    });
+    final controller = AppController(
+      store,
+      FeedService(client),
+      GeminiService(client, prefs),
+      NotificationService(),
+    );
+    final ready = Completer<void>();
+    controller.addListener(() {
+      if (!controller.loading &&
+          controller.articles.length == 1 &&
+          controller.itArticles.length == 1 &&
+          !ready.isCompleted) {
+        ready.complete();
+      }
+    });
+    await ready.future.timeout(
+      const Duration(seconds: 3),
+      onTimeout: () => throw StateError(
+        'ai=${controller.articles.length}, it=${controller.itArticles.length}, warnings=${controller.warnings}, itWarnings=${controller.itWarnings}, loading=${controller.loading}',
+      ),
+    );
+    expect(controller.articles.single.source.id, ai.id);
+    expect(controller.itArticles.single.source.id, it.id);
+    await controller.setSource(it, false);
+    expect(controller.articles.single.source.id, ai.id);
+    expect(controller.itArticles, isEmpty);
+    controller.dispose();
+    client.close();
+  });
   test('Cached summaries render first, only new items are batched, and refresh reuses the cache', () async {
     SharedPreferences.setMockInitialValues({'gemini_summary_model_policy': 2});
     final prefs = await SharedPreferences.getInstance();

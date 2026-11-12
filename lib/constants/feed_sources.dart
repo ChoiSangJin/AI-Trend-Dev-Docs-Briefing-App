@@ -2,6 +2,60 @@ import '../models/briefing.dart';
 
 const defaultFeedSources = <FeedSource>[
   FeedSource(
+    id: 'woowahan-tech',
+    name: '우아한형제들 기술 블로그',
+    url: 'https://techblog.woowahan.com/feed/',
+    category: 'IT·개발',
+  ),
+  FeedSource(
+    id: 'toss-tech',
+    name: '토스 기술 블로그',
+    url: 'https://toss.tech/rss.xml',
+    category: 'IT·개발',
+  ),
+  FeedSource(
+    id: 'kakao-tech',
+    name: '카카오 기술 블로그',
+    url: 'https://tech.kakao.com/feed/',
+    category: 'IT·개발',
+  ),
+  FeedSource(
+    id: 'naver-d2',
+    name: '네이버 D2',
+    url: 'https://d2.naver.com/d2.atom',
+    category: 'IT·개발',
+  ),
+  FeedSource(
+    id: 'netflix-tech',
+    name: 'Netflix TechBlog',
+    url: 'https://techblog.netflix.com/feeds/posts/default',
+    category: 'IT·개발',
+  ),
+  FeedSource(
+    id: 'aws-news',
+    name: 'AWS News Blog',
+    url: 'https://aws.amazon.com/blogs/aws/feed/',
+    category: 'IT·개발',
+  ),
+  FeedSource(
+    id: 'aws-devops',
+    name: 'AWS DevOps Blog',
+    url: 'https://aws.amazon.com/blogs/devops/feed/',
+    category: 'IT·개발',
+  ),
+  FeedSource(
+    id: 'apple-developer',
+    name: 'Apple Developer News',
+    url: 'https://developer.apple.com/news/rss/news.rss',
+    category: 'IT·개발',
+  ),
+  FeedSource(
+    id: 'coupang-engineering',
+    name: 'Coupang Engineering',
+    url: 'https://medium.com/feed/coupang-engineering',
+    category: 'IT·개발',
+  ),
+  FeedSource(
     id: 'openai',
     name: 'OpenAI News',
     url: 'https://openai.com/news/rss.xml',

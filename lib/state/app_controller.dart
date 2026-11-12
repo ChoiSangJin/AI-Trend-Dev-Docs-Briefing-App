@@ -47,6 +47,8 @@ class AppController extends ChangeNotifier {
   String? startupError, message;
   List<String> warnings = [];
   List<Article> articles = [];
+  List<Article> itArticles = [];
+  List<String> itWarnings = [];
   late List<FeedSource> sources;
   late Map<String, Briefing> cache;
   late Set<String> readIds;
@@ -111,9 +113,20 @@ class AppController extends ChangeNotifier {
     message = null;
     notifyListeners();
     try {
-      final result = await feeds.load(sources);
+      final aiSources = sources.where((s) => s.category != 'IT·개발').toList();
+      final itSources = sources.where((s) => s.category == 'IT·개발').toList();
+      final results = await Future.wait([
+        feeds.load(aiSources),
+        feeds.load(itSources),
+      ]);
+      final result = results[0];
+      final itResult = results[1];
+      if (itResult.articles.isNotEmpty || itSources.every((s) => !s.enabled)) {
+        itArticles = itResult.articles;
+      }
+      itWarnings = itResult.warnings;
       // Preserve an existing view when the device is temporarily offline.
-      if (result.articles.isNotEmpty || sources.every((s) => !s.enabled)) {
+      if (result.articles.isNotEmpty || aiSources.every((s) => !s.enabled)) {
         articles = result.articles;
       }
       warnings = result.warnings;
@@ -164,6 +177,9 @@ class AppController extends ChangeNotifier {
     articles = articles
         .where((a) => sources.any((s) => s.id == a.source.id && s.enabled))
         .toList();
+    itArticles = itArticles
+        .where((a) => sources.any((s) => s.id == a.source.id && s.enabled))
+        .toList();
     notifyListeners();
   }
 
@@ -198,6 +214,7 @@ class AppController extends ChangeNotifier {
     await store.saveSources(updated);
     sources = updated;
     articles = articles.where((a) => a.source.id != source.id).toList();
+    itArticles = itArticles.where((a) => a.source.id != source.id).toList();
     notifyListeners();
   }
 
