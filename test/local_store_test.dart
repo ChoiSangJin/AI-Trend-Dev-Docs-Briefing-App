@@ -117,6 +117,22 @@ void main() {
       expanded.length,
     );
   });
+  test('Backend and mobile engineering feeds ship as separate IT sources', () {
+    const expected = {
+      'cloudflare-blog',
+      'airbnb-engineering',
+      'spotify-engineering',
+      'meta-engineering',
+      'dropbox-tech',
+      'daangn-tech',
+      'line-engineering',
+      'socar-tech',
+    };
+    final sources = defaultFeedSources.where((s) => expected.contains(s.id));
+    expect(sources.map((s) => s.id).toSet(), expected);
+    expect(sources.every((s) => s.category == 'IT·개발'), isTrue);
+    expect(sources.every((s) => Uri.parse(s.url).scheme == 'https'), isTrue);
+  });
   TestWidgetsFlutterBinding.ensureInitialized();
   test(
     'Streak counts one visit per civil day, crosses months, and resets on gaps',
