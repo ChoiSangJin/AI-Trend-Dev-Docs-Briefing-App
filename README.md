@@ -159,4 +159,4 @@ Anthropic News, xAI News, X Blog 홈페이지는 접속되지만 페이지에 RS
 
 수집 확인: `dart run tool/it_feed_smoke.dart`. 2026-11-12에 개발 환경에서 제안된 9개 피드를 실제 수집 코드로 각각 확인했으며 모두 10개 항목을 반환했습니다.
 
-추가 기술 소스로 Cloudflare, Uber, Airbnb, Spotify, Meta, Dropbox, 당근, LINE, 쏘카의 공식 기술 블로그 RSS를 제공합니다. 새 기본 소스는 기존 설치의 소스 설정에 자동으로 합쳐지며 사용자가 꺼둔 기존 소스와 사용자 피드는 유지됩니다.
+추가 기술 소스로 Cloudflare, Airbnb, Spotify, Meta, Dropbox, 당근, LINE, 쏘카의 공식 기술 블로그 RSS를 제공합니다. 새 기본 소스는 기존 설치의 소스 설정에 자동으로 합쳐지며 사용자가 꺼둔 기존 소스와 사용자 피드는 유지됩니다. 제안된 Uber 주소와 현재 블로그의 RSS 후보 주소는 실제 검사에서 RSS 항목을 제공하지 않아 등록하지 않았습니다.

@@ -62,12 +62,6 @@ const defaultFeedSources = <FeedSource>[
     category: 'IT·개발',
   ),
   FeedSource(
-    id: 'uber-engineering',
-    name: 'Uber Engineering',
-    url: 'https://eng.uber.com/feed/',
-    category: 'IT·개발',
-  ),
-  FeedSource(
     id: 'airbnb-engineering',
     name: 'Airbnb Engineering',
     url: 'https://medium.com/feed/airbnb-engineering',
@@ -106,7 +100,7 @@ const defaultFeedSources = <FeedSource>[
   FeedSource(
     id: 'socar-tech',
     name: '쏘카 기술 블로그',
-    url: 'https://tech.socarcorp.kr/feed',
+    url: 'https://tech.socarcorp.kr/rss.xml',
     category: 'IT·개발',
   ),
   FeedSource(

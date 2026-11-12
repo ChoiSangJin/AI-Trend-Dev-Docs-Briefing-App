@@ -5,36 +5,6 @@ on:
 permissions:
   contents: read
 jobs:
-  probe-replacements:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: uber-rss
-            url: https://www.uber.com/blog/engineering/rss/
-          - name: uber-feed
-            url: https://www.uber.com/blog/engineering/feed/
-          - name: socar-rss
-            url: https://tech.socarcorp.kr/rss.xml
-          - name: socar-feed-xml
-            url: https://tech.socarcorp.kr/feed.xml
-          - name: socar-atom
-            url: https://tech.socarcorp.kr/atom.xml
-    name: probe (${{ matrix.name }})
-    steps:
-      - env:
-          FEED_URL: ${{ matrix.url }}
-        run: |
-          curl -fsSL --max-time 30 "$FEED_URL" -o candidate.xml
-          python3 - <<'PY'
-          import xml.etree.ElementTree as ET
-          root = ET.parse('candidate.xml').getroot()
-          entries = sum(node.tag.split('}')[-1] in {'item', 'entry'} for node in root.iter())
-          if entries == 0:
-              raise SystemExit('No RSS or Atom entries')
-          print(f'Parsed {entries} entries')
-          PY
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -43,7 +13,6 @@ jobs:
       matrix:
         source:
           - cloudflare-blog
-          - uber-engineering
           - airbnb-engineering
           - spotify-engineering
           - meta-engineering
