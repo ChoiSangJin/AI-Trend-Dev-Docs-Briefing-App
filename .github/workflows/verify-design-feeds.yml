@@ -1,0 +1,28 @@
+name: Verify proposed design feeds
+on:
+  push:
+    branches: [feat/add-design-news-tab]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        source:
+          - ux-collective
+          - ux-planet
+          - nngroup
+          - smashing-magazine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Parse each design RSS with the app feed service
+        run: dart run tool/it_feed_smoke.dart "${{ matrix.source }}"

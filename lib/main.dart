@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'services/local_store.dart';
 import 'state/app_controller.dart';
 import 'screens/home_screen.dart';
+import 'screens/design_screen.dart';
 import 'screens/it_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
@@ -149,6 +150,7 @@ class _AppShellState extends ConsumerState<AppShell>
             child: switch (selected) {
               0 => const HomeScreen(),
               1 => const ItScreen(),
+              2 => const DesignScreen(),
               _ => const SettingsScreen(),
             },
           ),
@@ -158,6 +160,7 @@ class _AppShellState extends ConsumerState<AppShell>
         selectedIndex: selected,
         onDestinationSelected: (value) {
           if (value == 1 && !app.itLoaded) app.refreshIt();
+          if (value == 2 && !app.designLoaded) app.refreshDesign();
           setState(() => selected = value);
         },
         destinations: const [
@@ -167,6 +170,11 @@ class _AppShellState extends ConsumerState<AppShell>
             label: '오늘의 브리핑',
           ),
           NavigationDestination(icon: Icon(Icons.code), label: 'IT·개발'),
+          NavigationDestination(
+            icon: Icon(Icons.palette_outlined),
+            selectedIcon: Icon(Icons.palette),
+            label: '디자인',
+          ),
           NavigationDestination(icon: Icon(Icons.tune), label: '내 설정'),
         ],
       ),

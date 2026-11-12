@@ -53,6 +53,10 @@ class AppController extends ChangeNotifier {
   List<String> itWarnings = [];
   bool itLoading = false, itLoaded = false, itSummarizing = false;
   String? itMessage;
+  List<Article> designArticles = [];
+  List<String> designWarnings = [];
+  bool designLoading = false, designLoaded = false, designSummarizing = false;
+  String? designMessage;
   Future<void> _summaryQueue = Future<void>.value();
   late List<FeedSource> sources;
   late Map<String, Briefing> cache;
@@ -118,7 +122,9 @@ class AppController extends ChangeNotifier {
     message = null;
     notifyListeners();
     try {
-      final aiSources = sources.where((s) => s.category != 'IT·개발').toList();
+      final aiSources = sources
+          .where((s) => s.category != 'IT·개발' && s.category != '디자인')
+          .toList();
       final result = await feeds.load(aiSources);
       // Preserve an existing view when the device is temporarily offline.
       if (result.articles.isNotEmpty || aiSources.every((s) => !s.enabled)) {
@@ -160,6 +166,31 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  Future<void> refreshDesign() async {
+    if (designLoading || designSummarizing) return;
+    designLoading = true;
+    notifyListeners();
+    try {
+      final designSources = sources.where((s) => s.category == '디자인').toList();
+      final result = await feeds.load(designSources);
+      if (result.articles.isNotEmpty ||
+          designSources.every((s) => !s.enabled)) {
+        designArticles = result.articles;
+      }
+      designWarnings = result.warnings;
+      designLoaded = true;
+      designLoading = false;
+      notifyListeners();
+      await summarizeDesign();
+    } catch (_) {
+      designWarnings = ['디자인 소식을 불러오지 못했어요. 다시 시도해 주세요.'];
+      designLoaded = true;
+    } finally {
+      designLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> _queueSummary(Future<void> Function() operation) {
     final result = _summaryQueue.then((_) => operation());
     _summaryQueue = result.catchError((Object _) {});
@@ -168,14 +199,31 @@ class AppController extends ChangeNotifier {
 
   Future<void> summarize() => _summarizeArticles(it: false);
   Future<void> summarizeIt() => _summarizeArticles(it: true);
+  Future<void> summarizeDesign() => _summarizeArticles(it: false, design: true);
 
-  Future<void> _summarizeArticles({required bool it}) async {
-    if (!hasKey || (it ? itSummarizing : summarizing)) return;
-    final missing = (it ? itArticles : articles)
+  Future<void> _summarizeArticles({
+    required bool it,
+    bool design = false,
+  }) async {
+    final isSummarizing = design
+        ? designSummarizing
+        : it
+        ? itSummarizing
+        : summarizing;
+    if (!hasKey || isSummarizing) return;
+    final targetArticles = design
+        ? designArticles
+        : it
+        ? itArticles
+        : articles;
+    final missing = targetArticles
         .where((a) => a.canSummarize && !cache.containsKey(a.id))
         .toList();
     if (missing.isEmpty) return;
-    if (it) {
+    if (design) {
+      designSummarizing = true;
+      designMessage = null;
+    } else if (it) {
       itSummarizing = true;
       itMessage = null;
     } else {
@@ -207,19 +255,25 @@ class AppController extends ChangeNotifier {
         await store.saveCache(cache);
       });
     } on BriefingException catch (e) {
-      if (it) {
+      if (design) {
+        designMessage = e.message;
+      } else if (it) {
         itMessage = e.message;
       } else {
         message = e.message;
       }
     } catch (_) {
-      if (it) {
+      if (design) {
+        designMessage = '요약을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.';
+      } else if (it) {
         itMessage = '요약을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.';
       } else {
         message = '요약을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.';
       }
     } finally {
-      if (it) {
+      if (design) {
+        designSummarizing = false;
+      } else if (it) {
         itSummarizing = false;
       } else {
         summarizing = false;
@@ -235,10 +289,14 @@ class AppController extends ChangeNotifier {
     await store.saveSources(updated);
     sources = updated;
     if (source.category == 'IT·개발') itLoaded = false;
+    if (source.category == '디자인') designLoaded = false;
     articles = articles
         .where((a) => sources.any((s) => s.id == a.source.id && s.enabled))
         .toList();
     itArticles = itArticles
+        .where((a) => sources.any((s) => s.id == a.source.id && s.enabled))
+        .toList();
+    designArticles = designArticles
         .where((a) => sources.any((s) => s.id == a.source.id && s.enabled))
         .toList();
     notifyListeners();
@@ -276,6 +334,9 @@ class AppController extends ChangeNotifier {
     sources = updated;
     articles = articles.where((a) => a.source.id != source.id).toList();
     itArticles = itArticles.where((a) => a.source.id != source.id).toList();
+    designArticles = designArticles
+        .where((a) => a.source.id != source.id)
+        .toList();
     notifyListeners();
   }
 

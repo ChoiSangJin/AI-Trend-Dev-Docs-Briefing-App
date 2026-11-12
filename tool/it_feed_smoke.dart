@@ -11,9 +11,9 @@ Future<void> main(List<String> args) async {
   try {
     final requested = args.toSet();
     final sources = defaultFeedSources.where(
-      (s) =>
-          s.category == 'IT·개발' &&
-          (requested.isEmpty || requested.contains(s.id)),
+      (s) => requested.isEmpty
+          ? s.category == 'IT·개발'
+          : requested.contains(s.id),
     );
     for (final source in sources) {
       final result = await service.load([source]);
