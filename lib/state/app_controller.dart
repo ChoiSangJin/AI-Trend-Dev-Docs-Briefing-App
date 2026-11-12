@@ -47,6 +47,9 @@ class AppController extends ChangeNotifier {
   String? startupError, message;
   List<String> warnings = [];
   List<Article> articles = [];
+  List<Article> itArticles = [];
+  List<String> itWarnings = [];
+  bool itLoading = false, itLoaded = false;
   late List<FeedSource> sources;
   late Map<String, Briefing> cache;
   late Set<String> readIds;
@@ -111,9 +114,10 @@ class AppController extends ChangeNotifier {
     message = null;
     notifyListeners();
     try {
-      final result = await feeds.load(sources);
+      final aiSources = sources.where((s) => s.category != 'IT·개발').toList();
+      final result = await feeds.load(aiSources);
       // Preserve an existing view when the device is temporarily offline.
-      if (result.articles.isNotEmpty || sources.every((s) => !s.enabled)) {
+      if (result.articles.isNotEmpty || aiSources.every((s) => !s.enabled)) {
         articles = result.articles;
       }
       warnings = result.warnings;
@@ -124,6 +128,27 @@ class AppController extends ChangeNotifier {
       message = '소식을 불러오지 못했어요. 아래로 당겨 다시 시도해 주세요.';
     } finally {
       loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> refreshIt() async {
+    if (itLoading) return;
+    itLoading = true;
+    notifyListeners();
+    try {
+      final itSources = sources.where((s) => s.category == 'IT·개발').toList();
+      final result = await feeds.load(itSources);
+      if (result.articles.isNotEmpty || itSources.every((s) => !s.enabled)) {
+        itArticles = result.articles;
+      }
+      itWarnings = result.warnings;
+      itLoaded = true;
+    } catch (_) {
+      itWarnings = ['IT·개발 소식을 불러오지 못했어요. 다시 시도해 주세요.'];
+      itLoaded = true;
+    } finally {
+      itLoading = false;
       notifyListeners();
     }
   }
@@ -161,7 +186,11 @@ class AppController extends ChangeNotifier {
         .toList();
     await store.saveSources(updated);
     sources = updated;
+    if (source.category == 'IT·개발') itLoaded = false;
     articles = articles
+        .where((a) => sources.any((s) => s.id == a.source.id && s.enabled))
+        .toList();
+    itArticles = itArticles
         .where((a) => sources.any((s) => s.id == a.source.id && s.enabled))
         .toList();
     notifyListeners();
@@ -198,6 +227,7 @@ class AppController extends ChangeNotifier {
     await store.saveSources(updated);
     sources = updated;
     articles = articles.where((a) => a.source.id != source.id).toList();
+    itArticles = itArticles.where((a) => a.source.id != source.id).toList();
     notifyListeners();
   }
 

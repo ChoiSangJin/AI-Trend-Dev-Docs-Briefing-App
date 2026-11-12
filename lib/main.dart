@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'services/local_store.dart';
 import 'state/app_controller.dart';
 import 'screens/home_screen.dart';
+import 'screens/it_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
 
@@ -145,19 +146,27 @@ class _AppShellState extends ConsumerState<AppShell>
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
-            child: selected == 0 ? const HomeScreen() : const SettingsScreen(),
+            child: switch (selected) {
+              0 => const HomeScreen(),
+              1 => const ItScreen(),
+              _ => const SettingsScreen(),
+            },
           ),
         ),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selected,
-        onDestinationSelected: (value) => setState(() => selected = value),
+        onDestinationSelected: (value) {
+          if (value == 1 && !app.itLoaded) app.refreshIt();
+          setState(() => selected = value);
+        },
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.wb_sunny_outlined),
             selectedIcon: Icon(Icons.wb_sunny),
             label: '오늘의 브리핑',
           ),
+          NavigationDestination(icon: Icon(Icons.code), label: 'IT·개발'),
           NavigationDestination(icon: Icon(Icons.tune), label: '내 설정'),
         ],
       ),
