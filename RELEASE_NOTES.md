@@ -1,5 +1,9 @@
 IT·개발 소식 화면을 추가했습니다.
 
+- AI 요약 요청에는 긴 기사 URL 대신 짧은 임시 식별자를 사용하고 응답 뒤 원래 기사와 안전하게 연결합니다.
+- 여러 기사 중 정상 요약은 즉시 저장하며, 누락되거나 잘못된 항목만 다음 재시도 대상으로 남깁니다.
+- 출력 길이 제한, 기사 식별자 불일치, JSON·필수 항목 오류를 구분해 안내합니다.
+
 - AI 브리핑과 분리된 기술 블로그 소식 목록
 - 우아한형제들, 토스, 카카오, 네이버 D2와 Netflix, AWS, Apple Developer, Coupang Engineering 피드
 - Cloudflare, Airbnb, Spotify, Meta, Dropbox, 당근, LINE, 쏘카 기술 블로그 피드

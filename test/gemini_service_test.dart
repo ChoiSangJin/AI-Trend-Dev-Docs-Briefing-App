@@ -169,6 +169,45 @@ void main() {
     expect(result, hasLength(10));
     client.close();
   });
+  test(
+    'Long article URLs are replaced with short request IDs and restored',
+    () async {
+      final client = MockClient((request) async {
+        final body = jsonDecode(request.body) as Map;
+        final input = jsonDecode(
+          body['contents'][0]['parts'][0]['text'] as String,
+        ) as List;
+        expect(input.single['id'], 'item-0');
+        return response([summary('item-0')]);
+      });
+      final service = GeminiService(client, prefs, clock: () => now);
+      final result = await service.summarize(key, [
+        article('https://example.com/a/very/long/article?id=123'),
+      ]);
+      expect(
+        result.single.id,
+        'https://example.com/a/very/long/article?id=123',
+      );
+      expect(service.lastSummaryWarning, isNull);
+      client.close();
+    },
+  );
+  test(
+    'Valid summaries survive when another item has a mismatched ID',
+    () async {
+      final client = MockClient(
+        (_) async => response([summary('item-0'), summary('wrong-id')]),
+      );
+      final service = GeminiService(client, prefs, clock: () => now);
+      final result = await service.summarize(key, [
+        article('https://example.com/first'),
+        article('https://example.com/second'),
+      ]);
+      expect(result.map((item) => item.id), ['https://example.com/first']);
+      expect(service.lastSummaryWarning, contains('식별자가 맞지 않아'));
+      client.close();
+    },
+  );
   test('Empty batches make no network request', () async {
     final client = MockClient((_) async => throw StateError('Unexpected call'));
     expect(await GeminiService(client, prefs).summarize(key, []), isEmpty);
@@ -221,7 +260,6 @@ void main() {
   });
   for (final invalid in [
     [summary('wrong-id')],
-    [summary('a'), summary('a')],
     [
       {
         ...summary('a'),
@@ -268,7 +306,13 @@ void main() {
     );
     await expectLater(
       GeminiService(client, prefs).summarize(key, [article('a')]),
-      throwsA(isA<BriefingException>()),
+      throwsA(
+        isA<BriefingException>().having(
+          (error) => error.message,
+          'message',
+          contains('길이 제한'),
+        ),
+      ),
     );
     client.close();
   });
