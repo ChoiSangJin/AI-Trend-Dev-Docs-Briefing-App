@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -49,7 +51,9 @@ class AppController extends ChangeNotifier {
   List<Article> articles = [];
   List<Article> itArticles = [];
   List<String> itWarnings = [];
-  bool itLoading = false, itLoaded = false;
+  bool itLoading = false, itLoaded = false, itSummarizing = false;
+  String? itMessage;
+  Future<void> _summaryQueue = Future<void>.value();
   late List<FeedSource> sources;
   late Map<String, Briefing> cache;
   late Set<String> readIds;
@@ -133,7 +137,7 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> refreshIt() async {
-    if (itLoading) return;
+    if (itLoading || itSummarizing) return;
     itLoading = true;
     notifyListeners();
     try {
@@ -144,6 +148,9 @@ class AppController extends ChangeNotifier {
       }
       itWarnings = result.warnings;
       itLoaded = true;
+      itLoading = false;
+      notifyListeners();
+      await summarizeIt();
     } catch (_) {
       itWarnings = ['IT·개발 소식을 불러오지 못했어요. 다시 시도해 주세요.'];
       itLoaded = true;
@@ -153,29 +160,70 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<void> summarize() async {
-    if (summarizing || !hasKey) return;
-    final missing = articles
+  Future<void> _queueSummary(Future<void> Function() operation) {
+    final result = _summaryQueue.then((_) => operation());
+    _summaryQueue = result.catchError((Object _) {});
+    return result;
+  }
+
+  Future<void> summarize() => _summarizeArticles(it: false);
+  Future<void> summarizeIt() => _summarizeArticles(it: true);
+
+  Future<void> _summarizeArticles({required bool it}) async {
+    if (!hasKey || (it ? itSummarizing : summarizing)) return;
+    final missing = (it ? itArticles : articles)
         .where((a) => a.canSummarize && !cache.containsKey(a.id))
         .toList();
     if (missing.isEmpty) return;
-    summarizing = true;
-    message = null;
+    if (it) {
+      itSummarizing = true;
+      itMessage = null;
+    } else {
+      summarizing = true;
+      message = null;
+    }
     notifyListeners();
     try {
-      final key = await store.readKey();
-      if (key == null) {
-        throw const BriefingException('설정에서 Gemini API 키를 다시 등록해 주세요.');
-      }
-      final result = await gemini.summarize(key, missing);
-      cache.addEntries(result.map((b) => MapEntry(b.id, b)));
-      await store.saveCache(cache);
+      await _queueSummary(() async {
+        final key = await store.readKey();
+        if (key == null) {
+          throw const BriefingException('설정에서 Gemini API 키를 다시 등록해 주세요.');
+        }
+        // The free-tier generation interval also applies across both tabs.
+        final next = store.prefs.getInt('gemini_next_request') ?? 0;
+        final delayMs = next - DateTime.now().millisecondsSinceEpoch;
+        if (delayMs > 65000) {
+          throw BriefingException(
+            '${(delayMs / 1000).ceil()}초 후 다시 시도해 주세요. 무료 사용량을 보호하고 있어요.',
+          );
+        }
+        if (delayMs > 0) {
+          await Future<void>.delayed(Duration(milliseconds: delayMs));
+        }
+        final pending = missing.where((a) => !cache.containsKey(a.id)).toList();
+        if (pending.isEmpty) return;
+        final result = await gemini.summarize(key, pending);
+        cache.addEntries(result.map((b) => MapEntry(b.id, b)));
+        await store.saveCache(cache);
+      });
     } on BriefingException catch (e) {
-      message = e.message;
+      if (it) {
+        itMessage = e.message;
+      } else {
+        message = e.message;
+      }
     } catch (_) {
-      message = '요약을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.';
+      if (it) {
+        itMessage = '요약을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.';
+      } else {
+        message = '요약을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.';
+      }
     } finally {
-      summarizing = false;
+      if (it) {
+        itSummarizing = false;
+      } else {
+        summarizing = false;
+      }
       notifyListeners();
     }
   }

@@ -30,7 +30,9 @@ class ItScreen extends ConsumerWidget {
               ),
               IconButton(
                 tooltip: '새 소식 불러오기',
-                onPressed: app.itLoading ? null : app.refreshIt,
+                onPressed: app.itLoading || app.itSummarizing
+                    ? null
+                    : app.refreshIt,
                 icon: const Icon(Icons.refresh),
               ),
             ],
@@ -41,7 +43,40 @@ class ItScreen extends ConsumerWidget {
             style: const TextStyle(color: Color(0xFF60716D)),
           ),
           const SizedBox(height: 20),
-          if (app.itLoading) const Center(child: CircularProgressIndicator()),
+          if (app.itLoading || app.itSummarizing)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      app.itLoading
+                          ? 'IT·개발 소식을 모으고 있어요…'
+                          : 'AI 요약 요청 간격에 맞춰 기다리거나 요약하고 있어요…',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (app.itMessage != null)
+            SoftPanel(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(app.itMessage!),
+                  TextButton(
+                    onPressed: app.itSummarizing ? null : app.summarizeIt,
+                    child: const Text('요약 다시 시도'),
+                  ),
+                ],
+              ),
+            ),
           if (app.itWarnings.isNotEmpty)
             ExpansionTile(
               title: Text('일부 소스 안내 (${app.itWarnings.length})'),
@@ -59,7 +94,7 @@ class ItScreen extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: 14),
               child: ArticleCard(
                 article: article,
-                briefing: null,
+                briefing: article.canSummarize ? app.cache[article.id] : null,
                 read: app.readIds.contains(article.id),
                 onTap: () async {
                   await app.markRead(article.id);
