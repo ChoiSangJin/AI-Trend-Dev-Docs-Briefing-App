@@ -120,7 +120,6 @@ void main() {
   test('Backend and mobile engineering feeds ship as separate IT sources', () {
     const expected = {
       'cloudflare-blog',
-      'uber-engineering',
       'airbnb-engineering',
       'spotify-engineering',
       'meta-engineering',
