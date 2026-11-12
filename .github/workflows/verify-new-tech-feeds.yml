@@ -1,0 +1,24 @@
+name: Verify proposed tech feeds
+on:
+  push:
+    branches: [feat/add-global-and-korean-tech-feeds]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Parse every proposed RSS with the app feed service
+        run: >-
+          dart run tool/it_feed_smoke.dart
+          cloudflare-blog uber-engineering airbnb-engineering
+          spotify-engineering meta-engineering dropbox-tech
+          daangn-tech line-engineering socar-tech

@@ -2,6 +2,7 @@ IT·개발 소식 화면을 추가했습니다.
 
 - AI 브리핑과 분리된 기술 블로그 소식 목록
 - 우아한형제들, 토스, 카카오, 네이버 D2와 Netflix, AWS, Apple Developer, Coupang Engineering 피드
+- Cloudflare, Uber, Airbnb, Spotify, Meta, Dropbox, 당근, LINE, 쏘카 기술 블로그 피드
 - 화면마다 최대 10개 소식, 출처별 설정·읽음 기록·새로고침 지원
 - IT·개발 화면은 RSS 발췌문을 바탕으로 Gemini 세 줄 요약을 생성하며 원문 링크도 제공합니다.
 
