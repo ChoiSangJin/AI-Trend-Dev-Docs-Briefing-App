@@ -216,4 +216,97 @@ void main() {
     controller.dispose();
     client.close();
   });
+  test(
+    'Fresh saved articles render after restart without a feed request',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = KeyStore(prefs);
+      final source = defaultFeedSources.first;
+      await store.saveArticles('ai', [
+        Article(
+          id: 'https://example.com/saved',
+          title: 'Saved immediately',
+          link: 'https://example.com/saved',
+          excerpt: '',
+          source: source,
+        ),
+      ]);
+      await store.markFeedFetched('ai', DateTime.now());
+      var requests = 0;
+      final client = MockClient((_) async {
+        requests++;
+        return http.Response('', 500);
+      });
+      final controller = AppController(
+        store,
+        FeedService(client),
+        GeminiService(client, prefs),
+        NotificationService(),
+      );
+      final initialized = Completer<void>();
+      controller.addListener(() {
+        if (controller.initialized && !initialized.isCompleted) {
+          initialized.complete();
+        }
+      });
+      await initialized.future.timeout(const Duration(seconds: 3));
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.articles.single.title, 'Saved immediately');
+      expect(requests, 0);
+      controller.dispose();
+      client.close();
+    },
+  );
+  test('Token-limit failures reduce the next summary batch', () async {
+    SharedPreferences.setMockInitialValues({'gemini_summary_model_policy': 2});
+    final prefs = await SharedPreferences.getInstance();
+    final store = KeyStore(prefs);
+    final source = defaultFeedSources.first;
+    await store.saveArticles('ai', [
+      Article(
+        id: 'https://example.com/long',
+        title: 'Long article',
+        link: 'https://example.com/long',
+        excerpt: 'Detailed article excerpt ' * 8,
+        source: source,
+        canSummarize: true,
+      ),
+    ]);
+    await store.markFeedFetched('ai', DateTime.now());
+    final client = MockClient(
+      (_) async => http.Response(
+        jsonEncode({
+          'candidates': [
+            {
+              'finishReason': 'MAX_TOKENS',
+              'content': {
+                'parts': [
+                  {'text': '[]'},
+                ],
+              },
+            },
+          ],
+        }),
+        200,
+      ),
+    );
+    final controller = AppController(
+      store,
+      FeedService(client),
+      GeminiService(client, prefs),
+      NotificationService(),
+    );
+    final failed = Completer<void>();
+    controller.addListener(() {
+      if (controller.message?.contains('더 작은 묶음') ?? false) {
+        if (!failed.isCompleted) failed.complete();
+      }
+    });
+    await failed.future.timeout(const Duration(seconds: 3));
+    expect(prefs.getInt('gemini_batch_size'), 5);
+    expect(controller.pendingSummaries(controller.articles), 1);
+    controller.dispose();
+    client.close();
+  });
 }

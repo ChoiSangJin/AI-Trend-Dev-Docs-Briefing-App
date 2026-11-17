@@ -8,8 +8,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/briefing.dart';
 
 class BriefingException implements Exception {
-  const BriefingException(this.message);
+  const BriefingException(this.message, {this.code});
   final String message;
+  final String? code;
   @override
   String toString() => message;
 }
@@ -291,6 +292,7 @@ class GeminiService {
         if (candidate['finishReason'] == 'MAX_TOKENS') {
           throw const BriefingException(
             'AI 요약 출력이 길이 제한에 도달했어요. 저장하지 않았으며 잠시 후 다시 시도해 주세요.',
+            code: 'max_tokens',
           );
         }
         if (candidate['finishReason'] != 'STOP') {

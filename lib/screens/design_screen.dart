@@ -13,7 +13,7 @@ class DesignScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final app = ref.watch(controllerProvider);
     return RefreshIndicator(
-      onRefresh: app.refreshDesign,
+      onRefresh: app.refreshDesignNow,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(22, 24, 22, 28),
@@ -30,9 +30,7 @@ class DesignScreen extends ConsumerWidget {
               ),
               IconButton(
                 tooltip: '새 소식 불러오기',
-                onPressed: app.designLoading || app.designSummarizing
-                    ? null
-                    : app.refreshDesign,
+                onPressed: app.designLoading ? null : app.refreshDesignNow,
                 icon: const Icon(Icons.refresh),
               ),
             ],
@@ -43,7 +41,7 @@ class DesignScreen extends ConsumerWidget {
             style: const TextStyle(color: Color(0xFF60716D)),
           ),
           const SizedBox(height: 20),
-          if (app.designLoading || app.designSummarizing)
+          if (app.designLoading)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 14),
               child: Row(
@@ -55,14 +53,17 @@ class DesignScreen extends ConsumerWidget {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      app.designLoading
-                          ? '디자인 소식을 모으고 있어요…'
-                          : 'AI 요약 요청 간격에 맞춰 기다리거나 요약하고 있어요…',
+                    child: const Text(
+                      '최신 디자인 기사를 확인하고 있어요… 저장된 소식은 바로 읽을 수 있어요.',
                     ),
                   ),
                 ],
               ),
+            ),
+          if (app.designSummarizing)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(app.summaryStatus('design', app.designArticles)),
             ),
           if (app.designMessage != null)
             SoftPanel(
