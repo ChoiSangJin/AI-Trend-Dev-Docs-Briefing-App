@@ -13,7 +13,7 @@ class ItScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final app = ref.watch(controllerProvider);
     return RefreshIndicator(
-      onRefresh: app.refreshIt,
+      onRefresh: app.refreshItNow,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(22, 24, 22, 28),
@@ -30,9 +30,7 @@ class ItScreen extends ConsumerWidget {
               ),
               IconButton(
                 tooltip: '새 소식 불러오기',
-                onPressed: app.itLoading || app.itSummarizing
-                    ? null
-                    : app.refreshIt,
+                onPressed: app.itLoading ? null : app.refreshItNow,
                 icon: const Icon(Icons.refresh),
               ),
             ],
@@ -43,7 +41,7 @@ class ItScreen extends ConsumerWidget {
             style: const TextStyle(color: Color(0xFF60716D)),
           ),
           const SizedBox(height: 20),
-          if (app.itLoading || app.itSummarizing)
+          if (app.itLoading)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 14),
               child: Row(
@@ -55,14 +53,17 @@ class ItScreen extends ConsumerWidget {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      app.itLoading
-                          ? 'IT·개발 소식을 모으고 있어요…'
-                          : 'AI 요약 요청 간격에 맞춰 기다리거나 요약하고 있어요…',
+                    child: const Text(
+                      '최신 IT·개발 기사를 확인하고 있어요… 저장된 소식은 바로 읽을 수 있어요.',
                     ),
                   ),
                 ],
               ),
+            ),
+          if (app.itSummarizing)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(app.summaryStatus('it', app.itArticles)),
             ),
           if (app.itMessage != null)
             SoftPanel(

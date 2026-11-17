@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:ai_briefing/constants/feed_sources.dart';
@@ -84,7 +85,15 @@ void main() {
         GeminiService(client, prefs),
         NotificationService(),
       );
+      final summarized = Completer<void>();
+      controller.addListener(() {
+        if (controller.cache.containsKey('https://example.com/article') &&
+            !summarized.isCompleted) {
+          summarized.complete();
+        }
+      });
       await controller.refreshIt();
+      await summarized.future.timeout(const Duration(seconds: 3));
       expect(controller.itMessage, isNull);
       expect(
         controller.cache['https://example.com/article']?.title,

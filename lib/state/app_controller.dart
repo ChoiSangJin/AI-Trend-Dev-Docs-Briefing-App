@@ -34,6 +34,9 @@ class AppController extends ChangeNotifier {
   AppController(this.store, this.feeds, this.gemini, this.notifications) {
     sources = store.readSources();
     cache = store.readCache();
+    articles = store.readArticles('ai');
+    itArticles = store.readArticles('it');
+    designArticles = store.readArticles('design');
     readIds = store.readIds();
     streak = store.readStreak();
     Future.microtask(initialize);
@@ -57,6 +60,7 @@ class AppController extends ChangeNotifier {
   List<String> designWarnings = [];
   bool designLoading = false, designLoaded = false, designSummarizing = false;
   String? designMessage;
+  String? _activeSummary;
   Future<void> _summaryQueue = Future<void>.value();
   late List<FeedSource> sources;
   late Map<String, Briefing> cache;
@@ -67,6 +71,26 @@ class AppController extends ChangeNotifier {
     hour: store.prefs.getInt('reminder_hour') ?? 8,
     minute: store.prefs.getInt('reminder_minute') ?? 0,
   );
+  int pendingSummaries(List<Article> values) => values
+      .where(
+        (article) => article.canSummarize && !cache.containsKey(article.id),
+      )
+      .length;
+  String summaryStatus(String section, List<Article> values) {
+    final pending = pendingSummaries(values);
+    final total = values.where((article) => article.canSummarize).length;
+    if (_activeSummary != section) {
+      return 'AI 요약 대기 중 · 미완료 $pending개';
+    }
+    final next = store.prefs.getInt('gemini_next_request') ?? 0;
+    final seconds = ((next - DateTime.now().millisecondsSinceEpoch) / 1000)
+        .ceil();
+    if (seconds > 0) {
+      return '무료 요청 간격으로 $seconds초 대기 중 · 미완료 $pending개';
+    }
+    return 'AI 요약 중 · ${total - pending}/$total개 저장됨';
+  }
+
   Future<void> initialize() async {
     startupError = null;
     try {
@@ -116,8 +140,14 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> refresh() async {
-    if (loading || summarizing) return;
+  Future<void> refresh({bool force = false}) async {
+    if (loading) return;
+    if (!force &&
+        articles.isNotEmpty &&
+        store.isFeedFresh('ai', DateTime.now())) {
+      unawaited(summarize());
+      return;
+    }
     loading = true;
     message = null;
     notifyListeners();
@@ -129,11 +159,13 @@ class AppController extends ChangeNotifier {
       // Preserve an existing view when the device is temporarily offline.
       if (result.articles.isNotEmpty || aiSources.every((s) => !s.enabled)) {
         articles = result.articles;
+        await store.saveArticles('ai', articles);
       }
+      await store.markFeedFetched('ai', DateTime.now());
       warnings = result.warnings;
       loading = false;
       notifyListeners();
-      await summarize();
+      unawaited(summarize());
     } catch (_) {
       message = '소식을 불러오지 못했어요. 아래로 당겨 다시 시도해 주세요.';
     } finally {
@@ -142,8 +174,18 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<void> refreshIt() async {
-    if (itLoading || itSummarizing) return;
+  Future<void> refreshNow() => refresh(force: true);
+
+  Future<void> refreshIt({bool force = false}) async {
+    if (itLoading) return;
+    itLoaded = true;
+    if (!force &&
+        itArticles.isNotEmpty &&
+        store.isFeedFresh('it', DateTime.now())) {
+      notifyListeners();
+      unawaited(summarizeIt());
+      return;
+    }
     itLoading = true;
     notifyListeners();
     try {
@@ -151,12 +193,14 @@ class AppController extends ChangeNotifier {
       final result = await feeds.load(itSources);
       if (result.articles.isNotEmpty || itSources.every((s) => !s.enabled)) {
         itArticles = result.articles;
+        await store.saveArticles('it', itArticles);
       }
+      await store.markFeedFetched('it', DateTime.now());
       itWarnings = result.warnings;
       itLoaded = true;
       itLoading = false;
       notifyListeners();
-      await summarizeIt();
+      unawaited(summarizeIt());
     } catch (_) {
       itWarnings = ['IT·개발 소식을 불러오지 못했어요. 다시 시도해 주세요.'];
       itLoaded = true;
@@ -166,8 +210,18 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<void> refreshDesign() async {
-    if (designLoading || designSummarizing) return;
+  Future<void> refreshItNow() => refreshIt(force: true);
+
+  Future<void> refreshDesign({bool force = false}) async {
+    if (designLoading) return;
+    designLoaded = true;
+    if (!force &&
+        designArticles.isNotEmpty &&
+        store.isFeedFresh('design', DateTime.now())) {
+      notifyListeners();
+      unawaited(summarizeDesign());
+      return;
+    }
     designLoading = true;
     notifyListeners();
     try {
@@ -176,12 +230,14 @@ class AppController extends ChangeNotifier {
       if (result.articles.isNotEmpty ||
           designSources.every((s) => !s.enabled)) {
         designArticles = result.articles;
+        await store.saveArticles('design', designArticles);
       }
+      await store.markFeedFetched('design', DateTime.now());
       designWarnings = result.warnings;
       designLoaded = true;
       designLoading = false;
       notifyListeners();
-      await summarizeDesign();
+      unawaited(summarizeDesign());
     } catch (_) {
       designWarnings = ['디자인 소식을 불러오지 못했어요. 다시 시도해 주세요.'];
       designLoaded = true;
@@ -190,6 +246,8 @@ class AppController extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<void> refreshDesignNow() => refreshDesign(force: true);
 
   Future<void> _queueSummary(Future<void> Function() operation) {
     final result = _summaryQueue.then((_) => operation());
@@ -233,6 +291,13 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     try {
       await _queueSummary(() async {
+        final section = design
+            ? 'design'
+            : it
+            ? 'it'
+            : 'ai';
+        _activeSummary = section;
+        notifyListeners();
         final key = await store.readKey();
         if (key == null) {
           throw const BriefingException('설정에서 Gemini API 키를 다시 등록해 주세요.');
@@ -246,31 +311,69 @@ class AppController extends ChangeNotifier {
           );
         }
         if (delayMs > 0) {
-          await Future<void>.delayed(Duration(milliseconds: delayMs));
+          var remaining = delayMs;
+          while (remaining > 0) {
+            final step = remaining.clamp(1, 1000);
+            await Future<void>.delayed(Duration(milliseconds: step));
+            remaining -= step;
+            notifyListeners();
+          }
         }
         final pending = missing.where((a) => !cache.containsKey(a.id)).toList();
         if (pending.isEmpty) return;
-        final result = await gemini.summarize(key, pending);
+        final batchSize = (store.prefs.getInt('gemini_batch_size') ?? 10).clamp(
+          2,
+          10,
+        );
+        final result = await gemini.summarize(
+          key,
+          pending.take(batchSize).toList(),
+        );
         cache.addEntries(result.map((b) => MapEntry(b.id, b)));
         await store.saveCache(cache);
         final warning = gemini.lastSummaryWarning;
-        if (warning != null) {
+        final remaining = targetArticles
+            .where(
+              (article) =>
+                  article.canSummarize && !cache.containsKey(article.id),
+            )
+            .length;
+        final progress =
+            warning ??
+            (remaining > 0
+                ? '$remaining개 기사 요약이 남아 있어요. 요청 간격이 지난 뒤 이어서 시도할 수 있어요.'
+                : null);
+        if (remaining == 0 && warning == null) {
+          await store.prefs.setInt('gemini_batch_size', 10);
+        }
+        if (progress != null) {
           if (design) {
-            designMessage = warning;
+            designMessage = progress;
           } else if (it) {
-            itMessage = warning;
+            itMessage = progress;
           } else {
-            message = warning;
+            message = progress;
           }
         }
       });
     } on BriefingException catch (e) {
+      if (e.code == 'max_tokens') {
+        final current = store.prefs.getInt('gemini_batch_size') ?? 10;
+        final reduced = current > 5 ? 5 : 2;
+        await store.prefs.setInt('gemini_batch_size', reduced);
+      }
       if (design) {
-        designMessage = e.message;
+        designMessage = e.code == 'max_tokens'
+            ? '${e.message} 다음 시도는 더 작은 묶음으로 처리해요.'
+            : e.message;
       } else if (it) {
-        itMessage = e.message;
+        itMessage = e.code == 'max_tokens'
+            ? '${e.message} 다음 시도는 더 작은 묶음으로 처리해요.'
+            : e.message;
       } else {
-        message = e.message;
+        message = e.code == 'max_tokens'
+            ? '${e.message} 다음 시도는 더 작은 묶음으로 처리해요.'
+            : e.message;
       }
     } catch (_) {
       if (design) {
@@ -281,6 +384,7 @@ class AppController extends ChangeNotifier {
         message = '요약을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.';
       }
     } finally {
+      _activeSummary = null;
       if (design) {
         designSummarizing = false;
       } else if (it) {
@@ -309,6 +413,11 @@ class AppController extends ChangeNotifier {
     designArticles = designArticles
         .where((a) => sources.any((s) => s.id == a.source.id && s.enabled))
         .toList();
+    await Future.wait([
+      store.saveArticles('ai', articles),
+      store.saveArticles('it', itArticles),
+      store.saveArticles('design', designArticles),
+    ]);
     notifyListeners();
   }
 
@@ -347,6 +456,11 @@ class AppController extends ChangeNotifier {
     designArticles = designArticles
         .where((a) => a.source.id != source.id)
         .toList();
+    await Future.wait([
+      store.saveArticles('ai', articles),
+      store.saveArticles('it', itArticles),
+      store.saveArticles('design', designArticles),
+    ]);
     notifyListeners();
   }
 

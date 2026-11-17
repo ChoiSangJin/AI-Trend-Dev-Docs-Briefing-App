@@ -96,6 +96,65 @@ class LocalStore {
     'sources',
     jsonEncode(sources.map((s) => s.toJson()).toList()),
   );
+
+  List<Article> readArticles(String section) {
+    try {
+      final raw = jsonDecode(prefs.getString('articles_$section') ?? '[]');
+      return (raw as List).take(10).map((value) {
+        final item = Map<String, dynamic>.from(value as Map);
+        final source = FeedSource.fromJson(
+          Map<String, dynamic>.from(item['source'] as Map),
+        );
+        final id = item['id'] as String;
+        final link = item['link'] as String;
+        final idUri = Uri.parse(id), linkUri = Uri.parse(link);
+        if (idUri.scheme != 'https' || linkUri.scheme != 'https') {
+          throw const FormatException('Unsafe cached article');
+        }
+        return Article(
+          id: id,
+          title: item['title'] as String,
+          link: link,
+          excerpt: item['excerpt'] as String,
+          source: source,
+          published: DateTime.tryParse(item['published'] as String? ?? ''),
+          canSummarize: item['canSummarize'] as bool? ?? false,
+        );
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> saveArticles(String section, List<Article> articles) async {
+    await prefs.setString(
+      'articles_$section',
+      jsonEncode([
+        for (final article in articles.take(10))
+          {
+            'id': article.id,
+            'title': article.title,
+            'link': article.link,
+            'excerpt': article.excerpt,
+            'source': article.source.toJson(),
+            'published': article.published?.toUtc().toIso8601String(),
+            'canSummarize': article.canSummarize,
+          },
+      ]),
+    );
+  }
+
+  bool isFeedFresh(String section, DateTime now) {
+    final fetched = prefs.getInt('articles_${section}_fetched_at');
+    return fetched != null &&
+        now.millisecondsSinceEpoch - fetched <
+            const Duration(minutes: 15).inMilliseconds;
+  }
+
+  Future<void> markFeedFetched(String section, DateTime now) => prefs.setInt(
+    'articles_${section}_fetched_at',
+    now.millisecondsSinceEpoch,
+  );
   Streak readStreak() =>
       Streak(prefs.getInt('streak') ?? 0, prefs.getString('last_day'));
   Future<Streak> visit(DateTime now) async {

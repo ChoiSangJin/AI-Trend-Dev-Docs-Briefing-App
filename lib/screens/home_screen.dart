@@ -28,7 +28,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         .where((a) => category == '전체' || a.source.category == category)
         .toList();
     return RefreshIndicator(
-      onRefresh: app.refresh,
+      onRefresh: app.refreshNow,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
@@ -44,7 +44,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const Spacer(),
               IconButton(
                 tooltip: '새 소식 불러오기',
-                onPressed: app.loading || app.summarizing ? null : app.refresh,
+                onPressed: app.loading ? null : app.refreshNow,
                 icon: const Icon(Icons.refresh),
               ),
             ],
@@ -143,7 +143,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ],
             ),
           ),
-          if (app.loading || app.summarizing)
+          if (app.loading)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 18),
               child: Row(
@@ -156,11 +156,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      app.loading ? '새 소식을 모으고 있어요…' : 'Google AI가 소식을 정리하고 있어요. 서버 오류 시 다른 모델로 한 번 더 시도해요…',
+                      '최신 기사를 확인하고 있어요… 저장된 소식은 바로 읽을 수 있어요.',
                       style: const TextStyle(fontSize: 12),
                     ),
                   ),
                 ],
+              ),
+            ),
+          if (app.summarizing)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                app.summaryStatus('ai', app.articles),
+                style: const TextStyle(fontSize: 12),
               ),
             ),
           if (app.message != null)
@@ -174,9 +182,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     Text(app.message!, style: const TextStyle(height: 1.5)),
                     const SizedBox(height: 8),
                     TextButton(
-                      onPressed: app.summarizing || app.loading
-                          ? null
-                          : app.summarize,
+                      onPressed: app.summarizing ? null : app.summarize,
                       child: const Text('요약 다시 시도'),
                     ),
                   ],

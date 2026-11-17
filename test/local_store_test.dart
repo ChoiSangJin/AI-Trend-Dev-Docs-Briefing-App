@@ -181,6 +181,41 @@ void main() {
     await reopened.visit(DateTime(2026, 10, 23, 23));
     expect(reopened.readStreak().days, 1);
   });
+  test(
+    'Recent articles survive restart and expire after fifteen minutes',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = LocalStore(prefs);
+      final now = DateTime.utc(2026, 11, 17, 1);
+      final source = defaultFeedSources.first;
+      await store.saveArticles('ai', [
+        Article(
+          id: 'https://example.com/article',
+          title: 'Saved article',
+          link: 'https://example.com/article',
+          excerpt: 'Saved excerpt',
+          source: source,
+          published: now,
+          canSummarize: true,
+        ),
+      ]);
+      await store.markFeedFetched('ai', now);
+
+      final restored = LocalStore(prefs).readArticles('ai').single;
+      expect(restored.title, 'Saved article');
+      expect(restored.source.id, source.id);
+      expect(restored.canSummarize, isTrue);
+      expect(
+        store.isFeedFresh('ai', now.add(const Duration(minutes: 14))),
+        isTrue,
+      );
+      expect(
+        store.isFeedFresh('ai', now.add(const Duration(minutes: 15))),
+        isFalse,
+      );
+    },
+  );
   test('Corrupt cache is discarded without losing source settings', () async {
     SharedPreferences.setMockInitialValues({'briefings': '{corrupt'});
     final store = LocalStore(await SharedPreferences.getInstance());
